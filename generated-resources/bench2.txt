@@ -1,0 +1,8 @@
+benchmarking processVectorsBV
+time                 3.631 s    (3.551 s .. 3.747 s)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 3.607 s    (3.575 s .. 3.626 s)
+std dev              29.16 ms   (0.0 s .. 33.11 ms)
+variance introduced by outliers: 19% (moderately inflated)
+
+processVectorsBV result: 3695476

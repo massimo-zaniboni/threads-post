@@ -1,0 +1,143 @@
+#+TITLE: Learned Lessons About Haskell Concurrent Programming
+#+OPTIONS: toc:1
+
+* Abstract
+Haskell supports nearly all concurrent programming paradigms (e.g. mutable variables, software transactional memory, channels, futures, actors, compilation to CUDA/OpenCL), but some of them have minor problems, that became important when used in production. 
+
+* The starting points
+"[[http://chimera.labs.oreilly.com/books/1230000000929][Parallel and Concurrent Programming in Haskell]]" by Simon Marlow is a very comprehensive and readable book on the subject. 
+
+Haskell accumulated with years different ways for managing exceptions and threads. [[http://hackage.haskell.org/package/safe-exceptions][safe-exceptions]] and [[https://hackage.haskell.org/package/async][async]] libraries make some order, and they are designed and tested in production environments.
+
+* Channels use too much RAM
+A real example: 
+- I have a fast process (producer) reading VoIP calls from the DB and performing minimal pre-processing
+- I have a slow process (consumer) rating the calls and sending back to the DB
+- producer and consumer run in parallel (or concurrently) and they interact through a channel/queue 
+ 
+The problem: the fast producer fills the channel and the RAM with calls to rate, instead of synchronizing with the speed of the slower consumer. This is a real problem in case of rerating of big time-frames, because the two processes can run for various minutes. 
+
+The solution: using bounded channels, so when the maximum capacity of the channel is reached, the producer will wait. 
+
+A rant: the fact that the default channel implementation in Haskell is not bounded is disappointing, because it introduces problems in production, without any benefit respect a bounded channel.
+
+This code simulate the problem. We will support different types of channels, for comparing their run-time behaviour:
+
+     #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/Channels.hs "-- chan-types" 
+     #+end_src
+
+This is the producer:
+
+     #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/Channels.hs "-- producer" 
+     #+end_src
+
+Note that we compute and use  the `hash` of the produced vector, for forcing its real computation at run-time, otherwise the Haskell run-time will send only a thunk on the channel, instead of the real vector. 
+
+This is the consumer:
+
+     #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/Channels.hs "-- consumer" 
+     #+end_src
+
+Finally this is the coordinator launching the two process:
+
+     #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/Channels.hs "-- test" 
+     #+end_src
+
+This is the used RAM, simulating 10 vectors (not too much) of 8MB each:
+
+#+begin_src sh :wrap src screen :results output replace :exports results 
+echo "Using unbounded (default) channels:"
+grep -i "total memory" ./generated-resources/channel1.txt
+echo "Using bounded channels: "
+grep -i "total memory" ./generated-resources/channel2.txt
+echo "Using a single MVar: "
+grep -i "total memory" ./generated-resources/channel3.txt
+#+end_src
+
+The unbounded channel is filled fastly from the producer, and consumed slowly from the consumer:
+
+#+INCLUDE: "./generated-resources/channel1.txt.svg" export html
+
+The worst thing it is that the peak of the graph can be arbitrarly high, because it depends from the number of the elements to process.
+
+In case of the bounded channel there is a lower and constant peak depending from the bound of the channel, and not from the elements to process:
+
+#+INCLUDE: "./generated-resources/channel2.txt.svg" export html
+
+In this example the difference between the two peaks is not much big because we used only 10 elements. But it can be arbitrarly big.
+
+In case of the MVar the RAM usage behaviour is the most regular:
+
+#+INCLUDE: "./generated-resources/channel3.txt.svg" export html
+
+Note that the bounded channel degenerates to a MVar case after it reaches its bound, because from this point the producer will generate only one value at a time: i.e when the consumer will free a slot in the channel. This can not be optimal for caching, and context switches. Probably an ideal solution is a channel with a guarantee max bound, but that is filled again from the producer only when it decreases to 50% of its capacity. So it is filled in batched mode.
+** Derived pattern
+*** Intent
+You have a producer and consumer process, working concurrently/in-parallel.
+*** Solution
+Make them communicate using a shared channel, but making sure that the channel is bounded.
+* Correct resource management with lazy evaluation
+Resource management is vital for robust production code. If too much file descriptors, database connections, or network sockets are left open, the system became unreliable. So resources must be acquired, used, and released in predictable way. But lazy evaluation renders the run-time behaviour more obscure and unpredictable, because there can be pending thunks instead of fully evaluated values. 
+
+Haskell uses `bracket` like functions for acquiring and releasing resources in a safe way. But current tested versions of `bracket` are buggy when not fully evaluated thunks are returned. In this example:
+
+    #+begin_src sh :wrap src haskell :results output replace :exports results 
+    ./untag.sh src/BuggyLazyEvaluation.hs "-- bad-bracket" 
+    #+end_src
+
+    #+begin_src sh :wrap src haskell :results output replace :exports results 
+    ./untag.sh src/BuggyLazyEvaluation.hs "-- lazy" 
+    #+end_src
+
+- the acquired resource is the file descriptor
+- the computation done on the resource is the reading of the file content
+- the result is a not fully evaluated thunk, because `Data.Text.Lazy.readFileContent` read the file content chunk by chunk, and only on demand when really needed
+
+What is the behaviour of Haskell run-time in this case?
+- if the resource is left open until the thunk is fully evaluated, we have a potential resource leak, because we have no guarantee at run-time of when (or if) the thunk will be fully evaluated
+- if the resource is closed before the thunk is fully evaluated, there will be an exception because during thunk evaluation the resource is not any more acquired
+
+Up to date it is the worst possible behaviour: the resource is closed before thunk evaluation, but no exceptions is raised during thunk evaluation, and instead the file is considered as empty. So it is clearly a bug (already signaled).
+
+Obviously this is a rather artificial example, but it can appear also in real world code, because there can be parts of a result managed from the run-time as not fully evaluated thunks. 
+** The solution
+ I created a safe version of bracket, returning a fully evaluated value:
+
+     #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/Process.hs "-- safe-bracket" 
+     #+end_src
+
+The drawbacks are that computations in two distinct brackets can not be fused together and optimized aggressively from the compiler, because they are two distinct and atomic computations. But this behaviour is in the spirit of safe resource management, where parallel resource acquisition is seen as a resource leak and not an optimization.
+
+These are the differences executing the code using `bracket` and `safeBracket`:
+
+     #+begin_src sh :wrap src screen :results output replace :exports results 
+ 	   stack exec threads-post -- test buggy-lazy-evaluation +RTS -N2 -RTS
+     #+end_src
+** Derived pattern
+*** Intent
+You have a computation using resources.
+*** Solution
+Enclose the computation inside `safeBracket`. It will act like a predictable transactions: when the value is required the resource is acquired, the code executed completely, and the resource will be closed immediately. 
+
+* Conclusions
+  TODO write
+* About
+This post is written in Babel, under Org-Mode, and it contains live code, that is executed every time the document is generated. The source code of this post is at https://github.com/massimo-zaniboni/threads-post. This code is tested on
+
+   #+INCLUDE: "./stack.yaml" src 
+
+and in particular 
+
+#+begin_src sh :wrap src haskell :results output replace :exports results 
+stack ghc -- --version 
+#+end_src
+
+Anything can improve with new versions of Stackage and GHC.
+
+I'm not a true expert of concurrent programming, so feel free to fork and extend it. It is all released under BSD2 license.
+
