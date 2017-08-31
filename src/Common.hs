@@ -58,6 +58,7 @@ slowComputationOnVector
 slowComputationOnVector bv fuzzyNormalizer
   = let g0 = mkStdGen (fuzzyNormalizer * 5)
 
+-- strict-begin
         nextR :: Int -> (Int, StdGen) -> (Int, StdGen)
         nextR 0 (!x1, !g1) = (x1, g1)
         nextR n (!x1, !g1) = nextR (n - 1) (random g1)
@@ -69,10 +70,11 @@ slowComputationOnVector bv fuzzyNormalizer
         advance (!s1, !g1) !x1
           = let (!x2, !g2) = nextR (x1 `mod` maxRandRepetition) (x1, g1)
             in  ((s1 + x2) `mod` fuzzyNormalizer, g2)
-
+-- strict-end
     in  fst $ BV.foldl' advance (0, g0) bv
 
 -- | The same as `slowComputationOnVector` but without strict annotations.
+-- comp2-begin
 slowComputationOnVector2
     :: RandomBV
     -> Int
@@ -95,6 +97,7 @@ slowComputationOnVector2 bv fuzzyNormalizer
             in  ((s1 + x2) `mod` fuzzyNormalizer, g2)
 
     in  fst $ BV.foldl' advance (0, g0) bv
+-- comp2-end
 
 -- --------------------------
 -- FullyRandomBV

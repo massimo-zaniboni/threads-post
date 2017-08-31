@@ -1,7 +1,12 @@
 {-# LANGUAGE FlexibleInstances, ScopedTypeVariables, BangPatterns, ExistentialQuantification, RankNTypes  #-}
 
 module Process (
-  safeBracket
+    safeBracket
+  , writeChan
+  , readChan
+  , writeEOFChan
+  , newChan
+  , Chan
 ) where
 
 import GHC.Generics (Generic)
@@ -10,7 +15,7 @@ import Data.Maybe
 import Data.List as L
 
 import Control.Concurrent.MVar
-import Control.Concurrent.BoundedChan
+import qualified Control.Concurrent.BoundedChan as BChan
 import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async
 import Control.Exception.Safe (catch, catchAny, onException, finally, handleAny, bracket
@@ -19,14 +24,8 @@ import Control.Exception.Safe (catch, catchAny, onException, finally, handleAny,
 import Control.DeepSeq
 import Control.DeepSeq.Generics
 
-import qualified System.IO.Streams as S
-import qualified System.IO.Streams.Text as S
-import qualified System.IO.Streams.Combinators as S
-import qualified System.IO.Streams.List as S
-import qualified System.IO.Streams.File as S
-import qualified System.IO.Streams.Vector as S
-import qualified Data.Vector as V
-import qualified Data.HashSet as HSet
+-- --------------------------------
+-- Safe resource management
 
 -- safe-bracket-begin
 -- | Fully evaluate the returned result, intercepting and rethrowing all exceptions.
@@ -53,3 +52,35 @@ safeBracket acquire release compute = do
                 throw exc)
 -- safe-bracket-end
 
+-- ----------------------------------
+-- Concurrent process
+
+-- safe-channels-begin
+-- | A channel of fully evaluated (NFData) values.
+newtype Chan a = Chan (BChan.BoundedChan (Maybe a))
+
+-- | A channel bounded to number of cores + 1.
+--   The channel is bounded so a producer faster than consumers
+--   does not waste the memory filling the channel with new values to process.
+newChan :: IO (Chan a)
+newChan = do
+  dim <- getNumCapabilities
+  Chan <$> BChan.newBoundedChan (dim + 1)
+
+{-# INLINE writeChan #-}
+-- | Fully evaluate the value, and write on the channel.
+writeChan :: (NFData a) => Chan a -> a -> IO ()
+writeChan (Chan ch) v = BChan.writeChan ch (Just $ force v)
+
+{-# INLINE writeEOFChan #-}
+-- | When the producer send this command, it informs consumers that there are no any more
+--   interesting values.
+writeEOFChan :: Chan a -> IO ()
+writeEOFChan (Chan ch) = BChan.writeChan ch Nothing
+
+{-# INLINE readChan #-}
+-- | Read the next value.
+--   Nothing implies that no new values should be put on the channel.
+readChan :: Chan a -> IO (Maybe a)
+readChan (Chan ch) = BChan.readChan ch
+-- safe-channels-end

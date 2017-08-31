@@ -9,8 +9,8 @@ author: Massimo Zaniboni
 data-dir: ""
 copyright: Massimo Zaniboni <massimo.zaniboni@dokstar.org>
 
-executable threads-post
-  ghc-options: -O -threaded -rtsopts 
+executable bench
+  ghc-options: -O2 -threaded -rtsopts 
   build-depends: 
              base -any
            , filepath -any 
@@ -48,3 +48,43 @@ executable threads-post
                  , Process
                  , Optimizations
 
+-- tag-prof-build-begin
+executable prof
+  ghc-options: -O2 -threaded -fprof-auto -rtsopts
+-- tag-prof-build-end
+  build-depends: 
+             base -any
+           , filepath -any 
+           , bytestring -any
+           , containers -any
+           , data-default -any
+           , mtl -any
+           , text -any
+           , time -any
+           , lens-family-core -any
+           , vector -any
+           , unordered-containers -any
+           , hashable -any
+           , directory -any
+           , safe-exceptions -any
+           , deepseq -any
+           , deepseq-generics -any
+           , exceptions -any
+           , async -any
+           , io-streams -any
+           , streaming -any
+           , streaming-utils -any
+           , streaming-bytestring -any
+           , BoundedChan -any
+           , random -any
+           , criterion -any
+           , statistics -any
+
+  main-is: Main.hs
+  buildable: True
+  hs-source-dirs: src
+  other-modules:   Channels
+                 , Common
+                 , BuggyLazyEvaluation
+                 , Process
+                 , Optimizations

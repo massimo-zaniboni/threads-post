@@ -1,8 +1,8 @@
 benchmarking processVectorsBV
-time                 3.631 s    (3.551 s .. 3.747 s)
-                     1.000 R²   (1.000 R² .. 1.000 R²)
-mean                 3.607 s    (3.575 s .. 3.626 s)
-std dev              29.16 ms   (0.0 s .. 33.11 ms)
+time                 3.665 s    (3.407 s .. 3.919 s)
+                     0.999 R²   (0.998 R² .. 1.000 R²)
+mean                 3.625 s    (3.571 s .. 3.663 s)
+std dev              58.44 ms   (0.0 s .. 67.01 ms)
 variance introduced by outliers: 19% (moderately inflated)
 
 processVectorsBV result: 3695476

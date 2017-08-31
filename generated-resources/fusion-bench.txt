@@ -1,0 +1,63 @@
+benchmarking list initial warm-up evaluation - not consider
+time                 192.4 ms   (190.3 ms .. 193.7 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 195.3 ms   (194.1 ms .. 196.6 ms)
+std dev              1.654 ms   (1.391 ms .. 1.883 ms)
+variance introduced by outliers: 14% (moderately inflated)
+
+benchmarking fusion list with foldl
+time                 14.31 ms   (14.29 ms .. 14.32 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 14.30 ms   (14.29 ms .. 14.34 ms)
+std dev              34.73 μs   (11.53 μs .. 67.81 μs)
+
+benchmarking fused list with foldl
+time                 13.87 ms   (13.84 ms .. 13.95 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 13.86 ms   (13.85 ms .. 13.91 ms)
+std dev              63.44 μs   (13.77 μs .. 126.0 μs)
+
+benchmarking fusion list with foldl'
+time                 13.94 ms   (13.92 ms .. 13.95 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 13.94 ms   (13.93 ms .. 13.94 ms)
+std dev              15.54 μs   (9.801 μs .. 21.46 μs)
+
+benchmarking fused list with foldl'
+time                 14.34 ms   (14.27 ms .. 14.46 ms)
+                     1.000 R²   (0.999 R² .. 1.000 R²)
+mean                 14.34 ms   (14.32 ms .. 14.41 ms)
+std dev              97.36 μs   (27.98 μs .. 186.7 μs)
+
+benchmarking fusion list with foldr
+time                 28.30 ms   (26.25 ms .. 30.18 ms)
+                     0.984 R²   (0.974 R² .. 0.994 R²)
+mean                 26.51 ms   (24.98 ms .. 27.56 ms)
+std dev              2.595 ms   (1.880 ms .. 3.348 ms)
+variance introduced by outliers: 43% (moderately inflated)
+
+benchmarking fused list with foldr
+time                 26.08 ms   (25.13 ms .. 26.85 ms)
+                     0.995 R²   (0.990 R² .. 0.998 R²)
+mean                 25.56 ms   (24.52 ms .. 26.55 ms)
+std dev              2.143 ms   (1.469 ms .. 3.125 ms)
+variance introduced by outliers: 35% (moderately inflated)
+
+benchmarking io-stream
+time                 20.66 ms   (20.63 ms .. 20.68 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 20.67 ms   (20.64 ms .. 20.70 ms)
+std dev              65.90 μs   (47.04 μs .. 100.5 μs)
+
+benchmarking fused io-stream
+time                 17.86 ms   (17.76 ms .. 17.94 ms)
+                     1.000 R²   (0.999 R² .. 1.000 R²)
+mean                 17.79 ms   (17.73 ms .. 17.86 ms)
+std dev              156.2 μs   (90.87 μs .. 252.9 μs)
+
+fusion list with foldl: 8338764493050923690
+fusion list with foldr: 8338764493050923690
+fused list with foldl: 8338764493050923690
+fused list with foldr: 8338764493050923690
+io-stream: 8338764493050923690
+fused io-stream: 8338764493050923690
