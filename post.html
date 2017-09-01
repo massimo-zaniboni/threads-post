@@ -3,10 +3,10 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2017-09-01 ven 12:52 -->
+<!-- 2017-09-01 ven 14:56 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Learned Lessons About Haskell Concurrent Programming</title>
+<title>Some Haskell Concurrent Programming Tests</title>
 <meta name="generator" content="Org mode" />
 <meta name="author" content="Massimo Zaniboni" />
 <style type="text/css">
@@ -228,40 +228,40 @@ for the JavaScript code in this tag.
 </head>
 <body>
 <div id="content">
-<h1 class="title">Learned Lessons About Haskell Concurrent Programming</h1>
+<h1 class="title">Some Haskell Concurrent Programming Tests</h1>
 <div id="table-of-contents">
 <h2>Table of Contents</h2>
 <div id="text-table-of-contents">
 <ul>
-<li><a href="#org01ee224">1. Abstract</a></li>
-<li><a href="#org6387b58">2. The starting points</a></li>
-<li><a href="#org22e0a47">3. Concurrent programming paradigms</a>
+<li><a href="#org6a3ada6">1. Abstract</a></li>
+<li><a href="#org863f96f">2. The starting points</a></li>
+<li><a href="#orgc6de2bc">3. Concurrent programming paradigms</a>
 <ul>
-<li><a href="#org6378524">3.1. Choose the right paradigm for the problem domain</a></li>
-<li><a href="#orgacb5e7d">3.2. Use external tools</a></li>
-<li><a href="#orgbfecf8b">3.3. Use a prototype</a></li>
-<li><a href="#org14cdc08">3.4. Default channels can waste memory</a></li>
-<li><a href="#orgb87acf6">3.5. Using channels for concurrent interaction between services</a></li>
-<li><a href="#orgf042251">3.6. Using threads for concurrent Tasks</a></li>
+<li><a href="#orgb089087">3.1. Choose the right paradigm for the problem domain</a></li>
+<li><a href="#orgeb64155">3.2. Use external tools</a></li>
+<li><a href="#org940d815">3.3. Use a prototype</a></li>
+<li><a href="#org8b23001">3.4. Default channels can waste memory</a></li>
+<li><a href="#org490c0e0">3.5. Using channels for concurrent interaction between services</a></li>
+<li><a href="#orgcf9cd5f">3.6. Using threads for concurrent Tasks</a></li>
 </ul>
 </li>
-<li><a href="#orgd57d0a6">4. Local optimizations</a>
+<li><a href="#org77525f7">4. Local optimizations</a>
 <ul>
-<li><a href="#org9cffa6f">4.1. Haskell run-time overview</a></li>
-<li><a href="#org1ebd7e5">4.2. Forcing strict evaluation</a></li>
-<li><a href="#org9a75ee1">4.3. Lazy evaluation can break resource management</a></li>
-<li><a href="#org0a18b49">4.4. Using streams for local IO processing</a></li>
-<li><a href="#org92aaf67">4.5. Profiling and benchmarking are distinct operations</a></li>
+<li><a href="#org8fe27ed">4.1. Haskell run-time overview</a></li>
+<li><a href="#orgb6b7a80">4.2. Forcing strict evaluation</a></li>
+<li><a href="#orgefcb1e2">4.3. Lazy evaluation can break resource management</a></li>
+<li><a href="#org14c5ee5">4.4. Using streams for local IO processing</a></li>
+<li><a href="#orgd5e530b">4.5. Profiling and benchmarking are distinct operations</a></li>
 </ul>
 </li>
-<li><a href="#org59b7cb9">5. Conclusions</a></li>
-<li><a href="#orgd2dace0">6. About</a></li>
+<li><a href="#org3889138">5. Conclusions</a></li>
+<li><a href="#orga407e6e">6. About</a></li>
 </ul>
 </div>
 </div>
 
-<div id="outline-container-org01ee224" class="outline-2">
-<h2 id="org01ee224"><span class="section-number-2">1</span> Abstract</h2>
+<div id="outline-container-org6a3ada6" class="outline-2">
+<h2 id="org6a3ada6"><span class="section-number-2">1</span> Abstract</h2>
 <div class="outline-text-2" id="text-1">
 <p>
 Haskell supports nearly all concurrent programming paradigms (e.g. mutable variables, software transactional memory, channels, futures, actors, compilation to CUDA/OpenCL), but some of them have minor problems, that became important when used in production.
@@ -269,8 +269,8 @@ TODO improve
 </p>
 </div>
 </div>
-<div id="outline-container-org6387b58" class="outline-2">
-<h2 id="org6387b58"><span class="section-number-2">2</span> The starting points</h2>
+<div id="outline-container-org863f96f" class="outline-2">
+<h2 id="org863f96f"><span class="section-number-2">2</span> The starting points</h2>
 <div class="outline-text-2" id="text-2">
 <p>
 "<a href="http://chimera.labs.oreilly.com/books/1230000000929">Parallel and Concurrent Programming in Haskell</a>" by Simon Marlow is a very comprehensive and readable book on the subject. 
@@ -281,11 +281,11 @@ Haskell accumulated with years different ways for managing exceptions and thread
 </p>
 </div>
 </div>
-<div id="outline-container-org22e0a47" class="outline-2">
-<h2 id="org22e0a47"><span class="section-number-2">3</span> Concurrent programming paradigms</h2>
+<div id="outline-container-orgc6de2bc" class="outline-2">
+<h2 id="orgc6de2bc"><span class="section-number-2">3</span> Concurrent programming paradigms</h2>
 <div class="outline-text-2" id="text-3">
-</div><div id="outline-container-org6378524" class="outline-3">
-<h3 id="org6378524"><span class="section-number-3">3.1</span> Choose the right paradigm for the problem domain</h3>
+</div><div id="outline-container-orgb089087" class="outline-3">
+<h3 id="orgb089087"><span class="section-number-3">3.1</span> Choose the right paradigm for the problem domain</h3>
 <div class="outline-text-3" id="text-3-1">
 <p>
 The concurrent paradigm to use must be chosen during the initial design phase, according the characteristics of the problem domain. 
@@ -296,8 +296,8 @@ For example in a bank application the optimistic approach (STM) wins because the
 </p>
 </div>
 </div>
-<div id="outline-container-orgacb5e7d" class="outline-3">
-<h3 id="orgacb5e7d"><span class="section-number-3">3.2</span> Use external tools</h3>
+<div id="outline-container-orgeb64155" class="outline-3">
+<h3 id="orgeb64155"><span class="section-number-3">3.2</span> Use external tools</h3>
 <div class="outline-text-3" id="text-3-2">
 <p>
 Some concurrent problems can be already solved from external services/tools:
@@ -308,8 +308,8 @@ Some concurrent problems can be already solved from external services/tools:
 </ul>
 </div>
 </div>
-<div id="outline-container-orgbfecf8b" class="outline-3">
-<h3 id="orgbfecf8b"><span class="section-number-3">3.3</span> Use a prototype</h3>
+<div id="outline-container-org940d815" class="outline-3">
+<h3 id="org940d815"><span class="section-number-3">3.3</span> Use a prototype</h3>
 <div class="outline-text-3" id="text-3-3">
 <p>
 Haskell supports many (all) concurrent paradigms, but maybe not at the same quality level. For example it supports light threads and Software Transactional Memory in a wonderful way, but probably the actor model is better supported in Erlang. Moreover some libraries are written initially for being included in scientific papers, and they can lack some refinements necessary for being used hassle-free in real world production environments. 
@@ -320,8 +320,8 @@ So take time to test them before committing blindly. In any case the tools witho
 </p>
 </div>
 </div>
-<div id="outline-container-org14cdc08" class="outline-3">
-<h3 id="org14cdc08"><span class="section-number-3">3.4</span> Default channels can waste memory</h3>
+<div id="outline-container-org8b23001" class="outline-3">
+<h3 id="org8b23001"><span class="section-number-3">3.4</span> Default channels can waste memory</h3>
 <div class="outline-text-3" id="text-3-4">
 <p>
 If a producer is faster than the consumer, it can fill the channel (and the memory) with data to process, instead of synchronizing with the speed of the slower consumer. The problem can manifest when the producer had to reprocess large batches of data.
@@ -732,30 +732,30 @@ In case of the MVar the RAM usage behaviour is the most regular, because it can 
 Note that the bounded channel degenerates to a MVar case after it reaches its bound, because from this point the producer will generate only one value at a time: i.e when the consumer will free a slot in the channel. This can not be optimal for caching, and context switches. Probably an ideal solution is a channel with a guarantee max bound, but that is filled again from the producer only when it decreases to 50% of its capacity. So it is filled in batched mode.
 </p>
 </div>
-<div id="outline-container-org88dc9f7" class="outline-4">
-<h4 id="org88dc9f7"><span class="section-number-4">3.4.1</span> Derived pattern</h4>
+<div id="outline-container-org7ef81e5" class="outline-4">
+<h4 id="org7ef81e5"><span class="section-number-4">3.4.1</span> Derived pattern</h4>
 <div class="outline-text-4" id="text-3-4-1">
-</div><ol class="org-ol"><li><a id="org80c2456"></a>Intent<br /><div class="outline-text-5" id="text-3-4-1-1">
+</div><ol class="org-ol"><li><a id="orge4fc9e2"></a>Intent<br /><div class="outline-text-5" id="text-3-4-1-1">
 <p>
 You have a producer and consumer process, working concurrently/in-parallel.
 </p>
 </div></li>
-<li><a id="org06fd4aa"></a>Solution<br /><div class="outline-text-5" id="text-3-4-1-2">
+<li><a id="org741066a"></a>Solution<br /><div class="outline-text-5" id="text-3-4-1-2">
 <p>
 Make them communicate using a shared channel, but making sure that the channel is bounded.
 </p>
 </div></li></ol>
 </div>
 </div>
-<div id="outline-container-orgb87acf6" class="outline-3">
-<h3 id="orgb87acf6"><span class="section-number-3">3.5</span> Using channels for concurrent interaction between services</h3>
+<div id="outline-container-org490c0e0" class="outline-3">
+<h3 id="org490c0e0"><span class="section-number-3">3.5</span> Using channels for concurrent interaction between services</h3>
 <div class="outline-text-3" id="text-3-5">
 <p>
 In Haskell you can map a local <a href="https://en.wikipedia.org/wiki/Service-orientation">Service</a> or <a href="https://en.wikipedia.org/wiki/Actor_model">Actor</a> to a thread. The thread can receive/send events using a shared channel. 
 </p>
 </div>
-<div id="outline-container-orga24aa0a" class="outline-4">
-<h4 id="orga24aa0a"><span class="section-number-4">3.5.1</span> Channels with fully evaluated values</h4>
+<div id="outline-container-orgf13a327" class="outline-4">
+<h4 id="orgf13a327"><span class="section-number-4">3.5.1</span> Channels with fully evaluated values</h4>
 <div class="outline-text-4" id="text-3-5-1">
 <p>
 Haskell channels by default can contain unevaluated thunks, instead of fully evaluated values. But this is not nice because:
@@ -803,8 +803,8 @@ So the best approach is sending always fully evaluated values. Obviously a fully
 </div>
 </div>
 
-<div id="outline-container-org77452d7" class="outline-4">
-<h4 id="org77452d7"><span class="section-number-4">3.5.2</span> Benchmarks</h4>
+<div id="outline-container-org8fa34ae" class="outline-4">
+<h4 id="org8fa34ae"><span class="section-number-4">3.5.2</span> Benchmarks</h4>
 <div class="outline-text-4" id="text-3-5-2">
 <p>
 Channels are not very fast because they must support sharing and synchronization between different threads. We will test their speed against io-streams and vectors.
@@ -902,15 +902,15 @@ The channel is 10x times slower than the io-stream. It is a big difference, but 
 </div>
 </div>
 
-<div id="outline-container-orgb30bb0b" class="outline-4">
-<h4 id="orgb30bb0b"><span class="section-number-4">3.5.3</span> Derived pattern</h4>
+<div id="outline-container-org6f380f8" class="outline-4">
+<h4 id="org6f380f8"><span class="section-number-4">3.5.3</span> Derived pattern</h4>
 <div class="outline-text-4" id="text-3-5-3">
-</div><ol class="org-ol"><li><a id="org6bd1c60"></a>Intent<br /><div class="outline-text-5" id="text-3-5-3-1">
+</div><ol class="org-ol"><li><a id="orgd4bc546"></a>Intent<br /><div class="outline-text-5" id="text-3-5-3-1">
 <p>
 Process data in an efficient and robust way.
 </p>
 </div></li>
-<li><a id="org647b291"></a>Solution<br /><div class="outline-text-5" id="text-3-5-3-2">
+<li><a id="orgd3051cc"></a>Solution<br /><div class="outline-text-5" id="text-3-5-3-2">
 <p>
 If the data is exchanged between threads, use channels because they guarantee fair scheduling between threads.
 </p>
@@ -925,15 +925,15 @@ If the data is internal to thread, and the computation is local (it is done from
 </div></li></ol>
 </div>
 </div>
-<div id="outline-container-orgf042251" class="outline-3">
-<h3 id="orgf042251"><span class="section-number-3">3.6</span> Using threads for concurrent Tasks</h3>
+<div id="outline-container-orgcf9cd5f" class="outline-3">
+<h3 id="orgcf9cd5f"><span class="section-number-3">3.6</span> Using threads for concurrent Tasks</h3>
 <div class="outline-text-3" id="text-3-6">
 <p>
 A concurrent Task is a sequence of operations that can interact with the IO world and/or other threads, and that can be executed concurrently with other tasks. 
 </p>
 </div>
-<div id="outline-container-org6b2eff1" class="outline-4">
-<h4 id="org6b2eff1"><span class="section-number-4">3.6.1</span> Task mapped to Operating System threads</h4>
+<div id="outline-container-org6d5eb3e" class="outline-4">
+<h4 id="org6d5eb3e"><span class="section-number-4">3.6.1</span> Task mapped to Operating System threads</h4>
 <div class="outline-text-4" id="text-3-6-1">
 <p>
 In traditional operating systems, tasks are implemented mapping them to threads. But context switch between threads is extremely slow on current CPUs. Threads have also some memory overhead. 
@@ -944,8 +944,8 @@ Using OS threads for managing tasks does not scale well.
 </p>
 </div>
 </div>
-<div id="outline-container-org5b2b75e" class="outline-4">
-<h4 id="org5b2b75e"><span class="section-number-4">3.6.2</span> Tasks managed from services, using a queue of events</h4>
+<div id="outline-container-orgcad7ae2" class="outline-4">
+<h4 id="orgcad7ae2"><span class="section-number-4">3.6.2</span> Tasks managed from services, using a queue of events</h4>
 <div class="outline-text-4" id="text-3-6-2">
 <p>
 A task can be managed directly from a Service, but each IO interaction can not block the Service, because it must serve also other clients. So the IO requests are managed as events put in an event queue, and they are resumed when the answer is arrived.
@@ -956,8 +956,8 @@ The code structured in this way is a lot faster (e.g. NGINX event based model vs
 </p>
 </div>
 </div>
-<div id="outline-container-org7a31962" class="outline-4">
-<h4 id="org7a31962"><span class="section-number-4">3.6.3</span> Tasks mapped to Haskell internal threads</h4>
+<div id="outline-container-orgefcc496" class="outline-4">
+<h4 id="orgefcc496"><span class="section-number-4">3.6.3</span> Tasks mapped to Haskell internal threads</h4>
 <div class="outline-text-4" id="text-3-6-3">
 <p>
 Haskell threads are very cheap: they uses very few memory, and the context switch between a thread to another has a cost comparable to a function call. So there can be thousands of active threads in an Haskell application.
@@ -972,8 +972,8 @@ So Haskell threads joins the benefits of events (fast concurrent code), and of t
 </p>
 </div>
 </div>
-<div id="outline-container-orge1ac48b" class="outline-4">
-<h4 id="orge1ac48b"><span class="section-number-4">3.6.4</span> Benchmarks</h4>
+<div id="outline-container-orga4da8b9" class="outline-4">
+<h4 id="orga4da8b9"><span class="section-number-4">3.6.4</span> Benchmarks</h4>
 <div class="outline-text-4" id="text-3-6-4">
 <p>
 We will process the elements of a vector, using a thread for each element, and a status MVar containing the current partial sum, and the number of the remaining elements to sum. When the count of elements to sum will reach 0, the last thread will write the final result on the MVar dedicated to the final result. The main thread will be resumed and it will return the result:
@@ -1059,31 +1059,31 @@ The benchmark shows that Haskell can scale to an high number of threads, and so 
 </p>
 </div>
 </div>
-<div id="outline-container-orgf3bfe5f" class="outline-4">
-<h4 id="orgf3bfe5f"><span class="section-number-4">3.6.5</span> Derived pattern</h4>
+<div id="outline-container-org7d52724" class="outline-4">
+<h4 id="org7d52724"><span class="section-number-4">3.6.5</span> Derived pattern</h4>
 <div class="outline-text-4" id="text-3-6-5">
-</div><ol class="org-ol"><li><a id="org98f552a"></a>Intent<br /><div class="outline-text-5" id="text-3-6-5-1">
+</div><ol class="org-ol"><li><a id="org9c27083"></a>Intent<br /><div class="outline-text-5" id="text-3-6-5-1">
 <p>
 Process complex requests (Tasks) using readable but efficient code.
 </p>
 </div></li>
-<li><a id="org74961b1"></a>Solution<br /><div class="outline-text-5" id="text-3-6-5-2">
+<li><a id="org2ef3b65"></a>Solution<br /><div class="outline-text-5" id="text-3-6-5-2">
 <p>
-Map each request to a Task that is a sequence of (concurrent) actions, and implement the task using an Haskell thread. 
+Map each active request to a Task that is a sequence of (concurrent) actions, and implement the task using an Haskell thread. 
 </p>
 </div></li></ol>
 </div>
 </div>
 </div>
-<div id="outline-container-orgd57d0a6" class="outline-2">
-<h2 id="orgd57d0a6"><span class="section-number-2">4</span> Local optimizations</h2>
+<div id="outline-container-org77525f7" class="outline-2">
+<h2 id="org77525f7"><span class="section-number-2">4</span> Local optimizations</h2>
 <div class="outline-text-2" id="text-4">
 <p>
 Local optimization matters also in case of concurrent code.
 </p>
 </div>
-<div id="outline-container-org9cffa6f" class="outline-3">
-<h3 id="org9cffa6f"><span class="section-number-3">4.1</span> Haskell run-time overview</h3>
+<div id="outline-container-org8fe27ed" class="outline-3">
+<h3 id="org8fe27ed"><span class="section-number-3">4.1</span> Haskell run-time overview</h3>
 <div class="outline-text-3" id="text-4-1">
 <p>
 For writing reasonable code from the beginning, and understanding the profiler hints, one must have a general idea of the Haskell run-time. The main concepts are:
@@ -1105,8 +1105,8 @@ For writing reasonable code from the beginning, and understanding the profiler h
 </ul>
 </div>
 </div>
-<div id="outline-container-org1ebd7e5" class="outline-3">
-<h3 id="org1ebd7e5"><span class="section-number-3">4.2</span> Forcing strict evaluation</h3>
+<div id="outline-container-orgb6b7a80" class="outline-3">
+<h3 id="orgb6b7a80"><span class="section-number-3">4.2</span> Forcing strict evaluation</h3>
 <div class="outline-text-3" id="text-4-2">
 <p>
 This function applies some passages of random number generation using the elements of an array as parameters. It uses `foldl'` that is a strict (and fast) version of `foldl`, and it works on boxed vectors, that is one of the fastest Haskell data structures. If converted to imperative code, it is a series of simple loops. So it should be fast code.
@@ -1203,15 +1203,15 @@ processVectorsBV result: <span style="color: #008b8b;">3695476</span>
 </div>
 </div>
 
-<div id="outline-container-org0f4d6ef" class="outline-4">
-<h4 id="org0f4d6ef"><span class="section-number-4">4.2.1</span> Derived pattern</h4>
+<div id="outline-container-org451000b" class="outline-4">
+<h4 id="org451000b"><span class="section-number-4">4.2.1</span> Derived pattern</h4>
 <div class="outline-text-4" id="text-4-2-1">
-</div><ol class="org-ol"><li><a id="orgad80563"></a>Intent<br /><div class="outline-text-5" id="text-4-2-1-1">
+</div><ol class="org-ol"><li><a id="org979fc14"></a>Intent<br /><div class="outline-text-5" id="text-4-2-1-1">
 <p>
 Having elegant but efficient Haskell code.
 </p>
 </div></li>
-<li><a id="orga976483"></a>Solution<br /><div class="outline-text-5" id="text-4-2-1-2">
+<li><a id="orgabd4f3e"></a>Solution<br /><div class="outline-text-5" id="text-4-2-1-2">
 <p>
 First write elegant code. Then use faster data structures. Add strict annotations in internal expressions, if you are sure that you are not interested to benefits of lazy evaluation. Profile the effect of each change.
 </p>
@@ -1223,8 +1223,8 @@ Usually these optimizations are easy to apply to an existing Haskell code-base, 
 </div>
 </div>
 
-<div id="outline-container-org9a75ee1" class="outline-3">
-<h3 id="org9a75ee1"><span class="section-number-3">4.3</span> Lazy evaluation can break resource management</h3>
+<div id="outline-container-orgefcb1e2" class="outline-3">
+<h3 id="orgefcb1e2"><span class="section-number-3">4.3</span> Lazy evaluation can break resource management</h3>
 <div class="outline-text-3" id="text-4-3">
 <p>
 Resource management is vital for robust production code. If too much file descriptors, database connections, or network sockets are left open, the system became unreliable. So resources must be acquired, used, and released in predictable way. But lazy evaluation renders the run-time behaviour more obscure and unpredictable, because there can be pending thunks instead of fully evaluated values. 
@@ -1275,8 +1275,8 @@ Up to date it is the worst possible behaviour: the resource is closed before thu
 Obviously this is a rather artificial example, but it can appear also in real world code, because there can be parts of a result managed from the run-time as not fully evaluated thunks. 
 </p>
 </div>
-<div id="outline-container-orgc48443d" class="outline-4">
-<h4 id="orgc48443d"><span class="section-number-4">4.3.1</span> The solution</h4>
+<div id="outline-container-orge5a0a19" class="outline-4">
+<h4 id="orge5a0a19"><span class="section-number-4">4.3.1</span> The solution</h4>
 <div class="outline-text-4" id="text-4-3-1">
 <p>
 I created a safe version of bracket, returning a fully evaluated value:
@@ -1330,23 +1330,23 @@ THE MORNINNG HAS GOLD IN IT<span style="color: #e67128;">'S MOUTH</span>
 </div>
 </div>
 
-<div id="outline-container-org2eedb52" class="outline-4">
-<h4 id="org2eedb52"><span class="section-number-4">4.3.2</span> Derived pattern</h4>
+<div id="outline-container-orgb41c9ca" class="outline-4">
+<h4 id="orgb41c9ca"><span class="section-number-4">4.3.2</span> Derived pattern</h4>
 <div class="outline-text-4" id="text-4-3-2">
-</div><ol class="org-ol"><li><a id="org45b5510"></a>Intent<br /><div class="outline-text-5" id="text-4-3-2-1">
+</div><ol class="org-ol"><li><a id="orgdeebce2"></a>Intent<br /><div class="outline-text-5" id="text-4-3-2-1">
 <p>
 You have a computation using resources.
 </p>
 </div></li>
-<li><a id="org6c56b64"></a>Solution<br /><div class="outline-text-5" id="text-4-3-2-2">
+<li><a id="orgb69e2e4"></a>Solution<br /><div class="outline-text-5" id="text-4-3-2-2">
 <p>
 Enclose the computation inside `safeBracket`. It will act like a predictable transactions: when the value is required the resource is acquired, the code executed completely, and the resource will be closed immediately. 
 </p>
 </div></li></ol>
 </div>
 </div>
-<div id="outline-container-org0a18b49" class="outline-3">
-<h3 id="org0a18b49"><span class="section-number-3">4.4</span> Using streams for local IO processing</h3>
+<div id="outline-container-org14c5ee5" class="outline-3">
+<h3 id="org14c5ee5"><span class="section-number-3">4.4</span> Using streams for local IO processing</h3>
 <div class="outline-text-3" id="text-4-4">
 <p>
 Suppose you have data in the IO world (e.g. the content of a big file, the result of a DB query, network events), that you want process in chunks, using a constant amount of memory. Stream oriented libraries like <a href="https://hackage.haskell.org/package/io-streams">io-streams</a> and <a href="http://hackage.haskell.org/package/pipes">pipes</a> ensure that elements are generated and processed in a predictable way (usually one at a time). On the contrary lists and other data structures as LazyByteStrings, can exhibits space leaks problems, due to unpredictable lazy evaluation behaviour at run-time.
@@ -1500,27 +1500,24 @@ Observe that:
 <li>curiously in this example `foldl` and `foldl'` have near the same speed, while `foldr` is 2x slower, but these are only micro benchmarks, and all can change in other examples</li>
 </ul>
 </div>
-<div id="outline-container-org19aecf9" class="outline-4">
-<h4 id="org19aecf9"><span class="section-number-4">4.4.1</span> Derived pattern</h4>
+<div id="outline-container-orgdeb6983" class="outline-4">
+<h4 id="orgdeb6983"><span class="section-number-4">4.4.1</span> Derived pattern</h4>
 <div class="outline-text-4" id="text-4-4-1">
-</div><ol class="org-ol"><li><a id="org356b60f"></a>Intent<br /><div class="outline-text-5" id="text-4-4-1-1">
+</div><ol class="org-ol"><li><a id="org6d33f7e"></a>Intent<br /><div class="outline-text-5" id="text-4-4-1-1">
 <p>
 Writing robust code for processing data from/to IO world. 
 </p>
 </div></li>
-<li><a id="org89992a1"></a>Solution<br /><div class="outline-text-5" id="text-4-4-1-2">
+<li><a id="org82c43aa"></a>Solution<br /><div class="outline-text-5" id="text-4-4-1-2">
 <p>
 Streams are fast, and their overhead is negligible respect the involved IO operations. Stream processing is robust because they guarantee that only one element at a time is generated and processed. So there is no waste of memory and space leaks. On the contrary lists are prone to this type of problems.
 </p>
 </div></li></ol>
 </div>
 </div>
-<div id="outline-container-org92aaf67" class="outline-3">
-<h3 id="org92aaf67"><span class="section-number-3">4.5</span> Profiling and benchmarking are distinct operations</h3>
+<div id="outline-container-orgd5e530b" class="outline-3">
+<h3 id="orgd5e530b"><span class="section-number-3">4.5</span> Profiling and benchmarking are distinct operations</h3>
 <div class="outline-text-3" id="text-4-5">
-</div><div id="outline-container-org6c3b3ea" class="outline-4">
-<h4 id="org6c3b3ea"><span class="section-number-4">4.5.1</span> Mundane intro</h4>
-<div class="outline-text-4" id="text-4-5-1">
 <p>
 For optimizing Haskell code you need a profiler, because developers can not easily predict where and why their code is slow. This is more true for an high-level language as Haskell, with a lot of compilation transformation pass, and a complex run-time. 
 </p>
@@ -1528,11 +1525,7 @@ For optimizing Haskell code you need a profiler, because developers can not easi
 <p>
 The good news are that often the optimization of Haskell code involves very minimal changes: adding strict annotations, using alternative (but compatible) data structures, and so on. The static typing system reduces a lot the refactoring effort, and often the new code is immediately correct.
 </p>
-</div>
-</div>
-<div id="outline-container-orgbec9453" class="outline-4">
-<h4 id="orgbec9453"><span class="section-number-4">4.5.2</span> The GHC profiler breaks the Criterion benchmarks</h4>
-<div class="outline-text-4" id="text-4-5-2">
+
 <p>
 Adding profiling instrumentation to the code, changes its run-time behaviour, and micro benchmarks done with <a href="https://hackage.haskell.org/package/criterion">Criterion</a> are not any more reliable. So profiling and benchmarking are two distinct operations, from an operational (not logical) point of view.
 </p>
@@ -1633,16 +1626,15 @@ Note: this benchmark is executed without activating at run-time the profiling op
 This benchmark shows that GHC is not applying automatic fusion on lists, because the hand-fused version is at least 3x faster. But this is a lie, introduced by the GHC profiler. Benchmarking the production code tells us that the compiler applies correctly fusion.
 </p>
 </div>
-</div>
-<div id="outline-container-orgef881ff" class="outline-4">
-<h4 id="orgef881ff"><span class="section-number-4">4.5.3</span> Derived pattern</h4>
-<div class="outline-text-4" id="text-4-5-3">
-</div><ol class="org-ol"><li><a id="orga416357"></a>Intent<br /><div class="outline-text-5" id="text-4-5-3-1">
+<div id="outline-container-org101104b" class="outline-4">
+<h4 id="org101104b"><span class="section-number-4">4.5.1</span> Derived pattern</h4>
+<div class="outline-text-4" id="text-4-5-1">
+</div><ol class="org-ol"><li><a id="org5640fdd"></a>Intent<br /><div class="outline-text-5" id="text-4-5-1-1">
 <p>
 Writing faster versions of an application.
 </p>
 </div></li>
-<li><a id="orgd6a91a2"></a>Solution<br /><div class="outline-text-5" id="text-4-5-3-2">
+<li><a id="org4baa215"></a>Solution<br /><div class="outline-text-5" id="text-4-5-1-2">
 <p>
 Use GHC profiler for macro optimizations, and Criterion for micro optimizations, but not both at the same time.
 </p>
@@ -1662,19 +1654,19 @@ If you want optimize concurrent and parallel code consider also code instrumente
 </div>
 </div>
 </div>
-<div id="outline-container-org59b7cb9" class="outline-2">
-<h2 id="org59b7cb9"><span class="section-number-2">5</span> Conclusions</h2>
+<div id="outline-container-org3889138" class="outline-2">
+<h2 id="org3889138"><span class="section-number-2">5</span> Conclusions</h2>
 <div class="outline-text-2" id="text-5">
 <p>
 TODO write
 </p>
 </div>
 </div>
-<div id="outline-container-orgd2dace0" class="outline-2">
-<h2 id="orgd2dace0"><span class="section-number-2">6</span> About</h2>
+<div id="outline-container-orga407e6e" class="outline-2">
+<h2 id="orga407e6e"><span class="section-number-2">6</span> About</h2>
 <div class="outline-text-2" id="text-6">
 <p>
-I'm using Haskell <a href="https://www.asterisell.com/">in production</a>, but I'm not a true expert of concurrent programming, so feel free to fork and extend this document. The source code is <a href="https://github.com/massimo-zaniboni/threads-post">here, on GitHub</a>. It is released under BSD2 license. It is written in Babel, under Org-Mode, and it contains live code, that is executed every time the document is generated.
+I'm using Haskell in production, for <a href="https://www.asterisell.com/">rating VoIP calls</a>, but I'm not a true expert of concurrent programming, so feel free to fork and extend this document. The source code of this document is <a href="https://github.com/massimo-zaniboni/threads-post">here, on GitHub</a>. It is released under BSD2 license. It is written in <a href="http://orgmode.org/worg/org-contrib/babel/">Babel</a>, under Emacs <a href="http://orgmode.org/">Org mode</a>, and it contains live code, that is executed every time the document is generated.
 </p>
 
 <p>
@@ -1705,7 +1697,7 @@ Anything can change/improve with new versions of Stackage and GHC.
 </div>
 <div id="postamble" class="status">
 <p class="author">Author: Massimo Zaniboni</p>
-<p class="date">Created: 2017-09-01 ven 12:52</p>
+<p class="date">Created: 2017-09-01 ven 14:56</p>
 <p class="validation"><a href="http://validator.w3.org/check?uri=referer">Validate</a></p>
 </div>
 </body>

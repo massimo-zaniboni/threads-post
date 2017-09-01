@@ -1,4 +1,4 @@
-#+TITLE: Learned Lessons About Haskell Concurrent Programming
+#+TITLE: Some Haskell Concurrent Programming Tests
 #+OPTIONS: toc:2
 
 * Abstract
@@ -309,12 +309,11 @@ Writing robust code for processing data from/to IO world.
 **** Solution 
 Streams are fast, and their overhead is negligible respect the involved IO operations. Stream processing is robust because they guarantee that only one element at a time is generated and processed. So there is no waste of memory and space leaks. On the contrary lists are prone to this type of problems.
 ** Profiling and benchmarking are distinct operations 
-*** Mundane intro
 For optimizing Haskell code you need a profiler, because developers can not easily predict where and why their code is slow. This is more true for an high-level language as Haskell, with a lot of compilation transformation pass, and a complex run-time. 
 
  The good news are that often the optimization of Haskell code involves very minimal changes: adding strict annotations, using alternative (but compatible) data structures, and so on. The static typing system reduces a lot the refactoring effort, and often the new code is immediately correct.
-*** The GHC profiler breaks the Criterion benchmarks
- Adding profiling instrumentation to the code, changes its run-time behaviour, and micro benchmarks done with [[https://hackage.haskell.org/package/criterion][Criterion]] are not any more reliable. So profiling and benchmarking are two distinct operations, from an operational (not logical) point of view.
+ 
+Adding profiling instrumentation to the code, changes its run-time behaviour, and micro benchmarks done with [[https://hackage.haskell.org/package/criterion][Criterion]] are not any more reliable. So profiling and benchmarking are two distinct operations, from an operational (not logical) point of view.
 
  These are the build options of the profiling instrumented version of the application:
 
@@ -347,7 +346,7 @@ If you want optimize concurrent and parallel code consider also code instrumente
 * Conclusions
   TODO write
 * About
-I'm using Haskell [[https://www.asterisell.com][in production]], but I'm not a true expert of concurrent programming, so feel free to fork and extend this document. The source code is [[https://github.com/massimo-zaniboni/threads-post][here, on GitHub]]. It is released under BSD2 license. It is written in Babel, under Org-Mode, and it contains live code, that is executed every time the document is generated.
+I'm using Haskell in production, for [[https://www.asterisell.com][rating VoIP calls]], but I'm not a true expert of concurrent programming, so feel free to fork and extend this document. The source code of this document is [[https://github.com/massimo-zaniboni/threads-post][here, on GitHub]]. It is released under BSD2 license. It is written in [[http://orgmode.org/worg/org-contrib/babel/][Babel]], under Emacs [[http://orgmode.org/][Org mode]], and it contains live code, that is executed every time the document is generated.
 
 The included code is tested on
 
