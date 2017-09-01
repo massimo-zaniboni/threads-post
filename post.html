@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2017-09-01 ven 14:56 -->
+<!-- 2017-09-01 ven 15:30 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Some Haskell Concurrent Programming Tests</title>
@@ -233,96 +233,53 @@ for the JavaScript code in this tag.
 <h2>Table of Contents</h2>
 <div id="text-table-of-contents">
 <ul>
-<li><a href="#org6a3ada6">1. Abstract</a></li>
-<li><a href="#org863f96f">2. The starting points</a></li>
-<li><a href="#orgc6de2bc">3. Concurrent programming paradigms</a>
+<li><a href="#org6b8c303">1. Abstract</a></li>
+<li><a href="#orga44bb06">2. Failed tests</a>
 <ul>
-<li><a href="#orgb089087">3.1. Choose the right paradigm for the problem domain</a></li>
-<li><a href="#orgeb64155">3.2. Use external tools</a></li>
-<li><a href="#org940d815">3.3. Use a prototype</a></li>
-<li><a href="#org8b23001">3.4. Default channels can waste memory</a></li>
-<li><a href="#org490c0e0">3.5. Using channels for concurrent interaction between services</a></li>
-<li><a href="#orgcf9cd5f">3.6. Using threads for concurrent Tasks</a></li>
+<li><a href="#org45b562e">2.1. Default channels are wasting memory</a></li>
+<li><a href="#org2430128">2.2. Lazy evaluation breaks resource management</a></li>
+<li><a href="#org6ee7cbc">2.3. Channels with unevaluated values</a></li>
+<li><a href="#org771007b">2.4. Forcing strict evaluation</a></li>
+<li><a href="#orgabb1196">2.5. Profiling and benchmarking are distinct operations</a></li>
 </ul>
 </li>
-<li><a href="#org77525f7">4. Local optimizations</a>
+<li><a href="#org652841a">3. Passed tests</a>
 <ul>
-<li><a href="#org8fe27ed">4.1. Haskell run-time overview</a></li>
-<li><a href="#orgb6b7a80">4.2. Forcing strict evaluation</a></li>
-<li><a href="#orgefcb1e2">4.3. Lazy evaluation can break resource management</a></li>
-<li><a href="#org14c5ee5">4.4. Using streams for local IO processing</a></li>
-<li><a href="#orgd5e530b">4.5. Profiling and benchmarking are distinct operations</a></li>
+<li><a href="#org1ab5dbd">3.1. Using streams for local IO processing</a></li>
+<li><a href="#org8dd084a">3.2. Using channels for concurrent interaction between services</a></li>
+<li><a href="#orgac8b7bf">3.3. Using threads for concurrent Tasks</a></li>
 </ul>
 </li>
-<li><a href="#org3889138">5. Conclusions</a></li>
-<li><a href="#orga407e6e">6. About</a></li>
+<li><a href="#orgc52d319">4. General guidelines</a>
+<ul>
+<li><a href="#org5466100">4.1. The mandatory book</a></li>
+<li><a href="#org7ec634c">4.2. Sane libraries</a></li>
+<li><a href="#org7e0c2c1">4.3. The right concurrent programming paradigm</a></li>
+<li><a href="#org44dc953">4.4. External tools</a></li>
+<li><a href="#org8e192d9">4.5. Prototype</a></li>
+<li><a href="#org23d0119">4.6. The Haskell run-time</a></li>
+</ul>
+</li>
+<li><a href="#org91c1470">5. Conclusions</a></li>
+<li><a href="#orgda63e8b">6. About</a></li>
 </ul>
 </div>
 </div>
 
-<div id="outline-container-org6a3ada6" class="outline-2">
-<h2 id="org6a3ada6"><span class="section-number-2">1</span> Abstract</h2>
+<div id="outline-container-org6b8c303" class="outline-2">
+<h2 id="org6b8c303"><span class="section-number-2">1</span> Abstract</h2>
 <div class="outline-text-2" id="text-1">
 <p>
-Haskell supports nearly all concurrent programming paradigms (e.g. mutable variables, software transactional memory, channels, futures, actors, compilation to CUDA/OpenCL), but some of them have minor problems, that became important when used in production.
-TODO improve 
+Haskell supports nearly all concurrent programming paradigms (e.g. mutable variables, software transactional memory, futures, compilation to CUDA/OpenCL), but some of them have minor problems, that became important when used in production.
 </p>
 </div>
 </div>
-<div id="outline-container-org863f96f" class="outline-2">
-<h2 id="org863f96f"><span class="section-number-2">2</span> The starting points</h2>
+<div id="outline-container-orga44bb06" class="outline-2">
+<h2 id="orga44bb06"><span class="section-number-2">2</span> Failed tests</h2>
 <div class="outline-text-2" id="text-2">
-<p>
-"<a href="http://chimera.labs.oreilly.com/books/1230000000929">Parallel and Concurrent Programming in Haskell</a>" by Simon Marlow is a very comprehensive and readable book on the subject. 
-</p>
-
-<p>
-Haskell accumulated with years different ways for managing exceptions and threads. <a href="http://hackage.haskell.org/package/safe-exceptions">safe-exceptions</a> and <a href="https://hackage.haskell.org/package/async">async</a> libraries simplifies a lot of things, and they are designed and tested for production environments.
-</p>
-</div>
-</div>
-<div id="outline-container-orgc6de2bc" class="outline-2">
-<h2 id="orgc6de2bc"><span class="section-number-2">3</span> Concurrent programming paradigms</h2>
-<div class="outline-text-2" id="text-3">
-</div><div id="outline-container-orgb089087" class="outline-3">
-<h3 id="orgb089087"><span class="section-number-3">3.1</span> Choose the right paradigm for the problem domain</h3>
-<div class="outline-text-3" id="text-3-1">
-<p>
-The concurrent paradigm to use must be chosen during the initial design phase, according the characteristics of the problem domain. 
-</p>
-
-<p>
-For example in a bank application the optimistic approach (STM) wins because the majority of concurrent transactions will be on distinct bank accounts, and you must only manage the rare conflicts. On the contrary for a working queue the pessimistic approach (MVar, non-blocking updates, etc..) is better, because the concurrent threads will try to access the shared data structure mainly at the same time, and conflicts will be the norm, not the exception. In case of distributed process acting like services, an approach like the Erlang Actors Model is good, but not for parallel code working on nested parallel numeric data structures. And so on&#x2026;
-</p>
-</div>
-</div>
-<div id="outline-container-orgeb64155" class="outline-3">
-<h3 id="orgeb64155"><span class="section-number-3">3.2</span> Use external tools</h3>
-<div class="outline-text-3" id="text-3-2">
-<p>
-Some concurrent problems can be already solved from external services/tools:
-</p>
-<ul class="org-ul">
-<li>a DBMS manages concurrent transactions "for free"</li>
-<li>a big-data engine compiles data processing code into efficient parallel code</li>
-</ul>
-</div>
-</div>
-<div id="outline-container-org940d815" class="outline-3">
-<h3 id="org940d815"><span class="section-number-3">3.3</span> Use a prototype</h3>
-<div class="outline-text-3" id="text-3-3">
-<p>
-Haskell supports many (all) concurrent paradigms, but maybe not at the same quality level. For example it supports light threads and Software Transactional Memory in a wonderful way, but probably the actor model is better supported in Erlang. Moreover some libraries are written initially for being included in scientific papers, and they can lack some refinements necessary for being used hassle-free in real world production environments. 
-</p>
-
-<p>
-So take time to test them before committing blindly. In any case the tools without any problem are the exceptions and not the norm in IT, so sorry for the FUD :-)
-</p>
-</div>
-</div>
-<div id="outline-container-org8b23001" class="outline-3">
-<h3 id="org8b23001"><span class="section-number-3">3.4</span> Default channels can waste memory</h3>
-<div class="outline-text-3" id="text-3-4">
+</div><div id="outline-container-org45b562e" class="outline-3">
+<h3 id="org45b562e"><span class="section-number-3">2.1</span> Default channels are wasting memory</h3>
+<div class="outline-text-3" id="text-2-1">
 <p>
 If a producer is faster than the consumer, it can fill the channel (and the memory) with data to process, instead of synchronizing with the speed of the slower consumer. The problem can manifest when the producer had to reprocess large batches of data.
 </p>
@@ -732,33 +689,148 @@ In case of the MVar the RAM usage behaviour is the most regular, because it can 
 Note that the bounded channel degenerates to a MVar case after it reaches its bound, because from this point the producer will generate only one value at a time: i.e when the consumer will free a slot in the channel. This can not be optimal for caching, and context switches. Probably an ideal solution is a channel with a guarantee max bound, but that is filled again from the producer only when it decreases to 50% of its capacity. So it is filled in batched mode.
 </p>
 </div>
-<div id="outline-container-org7ef81e5" class="outline-4">
-<h4 id="org7ef81e5"><span class="section-number-4">3.4.1</span> Derived pattern</h4>
-<div class="outline-text-4" id="text-3-4-1">
-</div><ol class="org-ol"><li><a id="orge4fc9e2"></a>Intent<br /><div class="outline-text-5" id="text-3-4-1-1">
+<div id="outline-container-org470dcbc" class="outline-4">
+<h4 id="org470dcbc"><span class="section-number-4">2.1.1</span> Derived pattern</h4>
+<div class="outline-text-4" id="text-2-1-1">
+</div><ol class="org-ol"><li><a id="org435f60d"></a>Intent<br /><div class="outline-text-5" id="text-2-1-1-1">
 <p>
 You have a producer and consumer process, working concurrently/in-parallel.
 </p>
 </div></li>
-<li><a id="org741066a"></a>Solution<br /><div class="outline-text-5" id="text-3-4-1-2">
+<li><a id="orgbd0a843"></a>Solution<br /><div class="outline-text-5" id="text-2-1-1-2">
 <p>
 Make them communicate using a shared channel, but making sure that the channel is bounded.
 </p>
 </div></li></ol>
 </div>
 </div>
-<div id="outline-container-org490c0e0" class="outline-3">
-<h3 id="org490c0e0"><span class="section-number-3">3.5</span> Using channels for concurrent interaction between services</h3>
-<div class="outline-text-3" id="text-3-5">
+<div id="outline-container-org2430128" class="outline-3">
+<h3 id="org2430128"><span class="section-number-3">2.2</span> Lazy evaluation breaks resource management</h3>
+<div class="outline-text-3" id="text-2-2">
 <p>
-In Haskell you can map a local <a href="https://en.wikipedia.org/wiki/Service-orientation">Service</a> or <a href="https://en.wikipedia.org/wiki/Actor_model">Actor</a> to a thread. The thread can receive/send events using a shared channel. 
+Resource management is vital for robust production code. If too much file descriptors, database connections, or network sockets are left open, the system became unreliable. So resources must be acquired, used, and released in predictable way. But lazy evaluation renders the run-time behaviour more obscure and unpredictable, because there can be pending thunks instead of fully evaluated values. 
+</p>
+
+<p>
+Haskell uses `bracket` like functions for acquiring and releasing resources in a safe way. But current tested versions of `bracket` are buggy when not fully evaluated thunks are returned. In this example:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">readFileContent1</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">FilePath</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #34cae2;">LText.Text</span>
+<span style="color: #00ede1; font-weight: bold;">readFileContent1</span> fileName
+  <span style="color: #dbdb95;">=</span> bracket
+      <span style="color: #8c8c8c;">(</span>openFile fileName <span style="color: #34cae2;">ReadMode</span><span style="color: #8c8c8c;">)</span>
+      hClose
+      <span style="color: #8c8c8c;">(</span><span style="color: #dbdb95;">\</span>handle <span style="color: #dbdb95;">-&gt;</span> <span style="color: #ffad29; font-weight: bold;">do</span> content <span style="color: #dbdb95;">&lt;-</span> LText.hGetContents handle
+                     return <span style="color: #dbdb95;">$</span> toUpperCase content<span style="color: #8c8c8c;">)</span>
+</pre>
+</div>
+
+<div class="org-src-container">
+<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">printFileContent1</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">FilePath</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #8c8c8c;">()</span> 
+<span style="color: #00ede1; font-weight: bold;">printFileContent1</span> fileName <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
+  c <span style="color: #dbdb95;">&lt;-</span> readFileContent1 fileName
+  putStrLn <span style="color: #dbdb95;">$</span> LText.unpack c
+</pre>
+</div>
+
+<ul class="org-ul">
+<li>the acquired resource is the file descriptor</li>
+<li>the computation done using the resource is the reading of the file content</li>
+<li>the result is a not fully evaluated thunk, because `Data.Text.Lazy.readFileContent` read the file content chunk by chunk, and only on demand when really needed</li>
+</ul>
+
+<p>
+What is the behaviour of Haskell run-time in this case?
+</p>
+<ul class="org-ul">
+<li>if the resource is left open until the thunk is fully evaluated, we have a potential resource leak, because we have no guarantee at run-time of when (or if) the thunk will be fully evaluated</li>
+<li>if the resource is closed before the thunk is fully evaluated, there will be an exception because during thunk evaluation the resource is not any more acquired</li>
+</ul>
+
+<p>
+Up to date it is the worst possible behaviour: the resource is closed before thunk evaluation, but no exceptions is raised during thunk evaluation, and instead the file is considered as empty. So it is clearly a bug (already signaled).
+</p>
+
+<p>
+Obviously this is a rather artificial example, but it can appear also in real world code, because there can be parts of a result managed from the run-time as not fully evaluated thunks. 
 </p>
 </div>
-<div id="outline-container-orgf13a327" class="outline-4">
-<h4 id="orgf13a327"><span class="section-number-4">3.5.1</span> Channels with fully evaluated values</h4>
-<div class="outline-text-4" id="text-3-5-1">
+<div id="outline-container-orgdffae4f" class="outline-4">
+<h4 id="orgdffae4f"><span class="section-number-4">2.2.1</span> The solution</h4>
+<div class="outline-text-4" id="text-2-2-1">
 <p>
-Haskell channels by default can contain unevaluated thunks, instead of fully evaluated values. But this is not nice because:
+I created a safe version of bracket, returning a fully evaluated value:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-haskell"><span style="color: #e67128;">-- | Fully evaluate the returned result, intercepting and rethrowing all exceptions.</span>
+<span style="color: #e67128;">--   If during exception management, the resource `release` produce errors,</span>
+<span style="color: #e67128;">--   then only the parent exception of the `compute` function is rethrowned.</span>
+<span style="color: #e67128;">--   </span><span style="color: #d0bf8f;">NOTE</span><span style="color: #e67128;">: returning a fully evaluated value assures that the resources can be</span>
+<span style="color: #e67128;">--   released correctly, because it is not any more needed.</span>
+<span style="color: #00ede1; font-weight: bold;">safeBracket</span>
+  <span style="color: #dbdb95;">::</span>  <span style="color: #ffad29; font-weight: bold;">forall</span> m a b c <span style="color: #dbdb95;">.</span> <span style="color: #8c8c8c;">(</span><span style="color: #34cae2;">MonadMask</span> m, <span style="color: #34cae2;">NFData</span> c<span style="color: #8c8c8c;">)</span>
+  <span style="color: #dbdb95;">=&gt;</span> m a
+  <span style="color: #e67128;">-- ^ acquire the resource</span>
+  <span style="color: #dbdb95;">-&gt;</span> <span style="color: #8c8c8c;">(</span><span style="color: #34cae2;">Maybe</span> <span style="color: #34cae2;">SomeException</span> <span style="color: #dbdb95;">-&gt;</span> a <span style="color: #dbdb95;">-&gt;</span> m b<span style="color: #8c8c8c;">)</span>
+  <span style="color: #e67128;">-- ^ release the resource at the end of normal result computation, or in case of an exception.</span>
+  <span style="color: #dbdb95;">-&gt;</span> <span style="color: #8c8c8c;">(</span>a <span style="color: #dbdb95;">-&gt;</span> m c<span style="color: #8c8c8c;">)</span>
+  <span style="color: #e67128;">-- ^ compute the result</span>
+  <span style="color: #dbdb95;">-&gt;</span> m c
+<span style="color: #00ede1; font-weight: bold;">safeBracket</span> acquire release compute <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
+  <span style="color: #dbdb95;">!</span>resource <span style="color: #dbdb95;">&lt;-</span> acquire
+  withException
+    <span style="color: #8c8c8c;">(</span><span style="color: #ffad29; font-weight: bold;">do</span> <span style="color: #dbdb95;">!</span>r <span style="color: #dbdb95;">&lt;-</span> force <span style="color: #dbdb95;">&lt;$!&gt;</span> compute resource
+        release <span style="color: #34cae2;">Nothing</span> resource
+        return r<span style="color: #8c8c8c;">)</span>
+    <span style="color: #8c8c8c;">(</span><span style="color: #dbdb95;">\</span>exc <span style="color: #dbdb95;">-&gt;</span> <span style="color: #ffad29; font-weight: bold;">do</span> release <span style="color: #93a8c6;">(</span><span style="color: #34cae2;">Just</span> exc<span style="color: #93a8c6;">)</span> resource
+                throw exc<span style="color: #8c8c8c;">)</span>
+</pre>
+</div>
+
+<p>
+The drawbacks are that computations in two distinct brackets can not be fused together and optimized aggressively from the compiler, because they are two distinct and atomic computations. But this behaviour is in the spirit of safe resource management, where parallel resource acquisition is seen as a resource leak and not an optimization.
+</p>
+
+<p>
+These are the differences executing the code using `bracket` and `safeBracket`:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-screen">File content using bad bracket: 
+
+
+File content using safe bracket: 
+THE MORNINNG HAS GOLD IN IT<span style="color: #e67128;">'S MOUTH</span>
+<span style="color: #e67128;">THE MORNINNG HAS GOLD IN IT'</span>S MOUTH
+THE MORNINNG HAS GOLD IN IT<span style="color: #e67128;">'S MOUTH</span>
+
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-orgd6733a0" class="outline-4">
+<h4 id="orgd6733a0"><span class="section-number-4">2.2.2</span> Derived pattern</h4>
+<div class="outline-text-4" id="text-2-2-2">
+</div><ol class="org-ol"><li><a id="orgb4e28cc"></a>Intent<br /><div class="outline-text-5" id="text-2-2-2-1">
+<p>
+You have a computation using resources.
+</p>
+</div></li>
+<li><a id="org99bdec9"></a>Solution<br /><div class="outline-text-5" id="text-2-2-2-2">
+<p>
+Enclose the computation inside `safeBracket`. It will act like a predictable transactions: when the value is required the resource is acquired, the code executed completely, and the resource will be closed immediately. 
+</p>
+</div></li></ol>
+</div>
+</div>
+<div id="outline-container-org6ee7cbc" class="outline-3">
+<h3 id="org6ee7cbc"><span class="section-number-3">2.3</span> Channels with unevaluated values</h3>
+<div class="outline-text-3" id="text-2-3">
+<p>
+Haskell channels can contain unevaluated thunks, instead of fully evaluated values. But this is not nice because:
 </p>
 <ul class="org-ul">
 <li>the receiving thread had to use its resources (CPU, and memory) for evaluating a thunk, and this complicate the reasoning about sharing of work between threads</li>
@@ -800,314 +872,16 @@ So the best approach is sending always fully evaluated values. Obviously a fully
 <span style="color: #00ede1; font-weight: bold;">readChan</span> <span style="color: #8c8c8c;">(</span><span style="color: #34cae2;">Chan</span> ch<span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">=</span> BChan.readChan ch
 </pre>
 </div>
-</div>
-</div>
-
-<div id="outline-container-org8fa34ae" class="outline-4">
-<h4 id="org8fa34ae"><span class="section-number-4">3.5.2</span> Benchmarks</h4>
-<div class="outline-text-4" id="text-3-5-2">
-<p>
-Channels are not very fast because they must support sharing and synchronization between different threads. We will test their speed against io-streams and vectors.
-</p>
 
 <p>
-This code applies the already known function `fuseCalcOnFoldl` on all the elements of an unboxed vector of `Int`. It is one of the fastest possible operations in Haskell, because it access directly the memory, without any overhead. An operation like this can only be executed locally from a thread, for processing internal data:
-</p>
-
-<div class="org-src-container">
-<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">sumOnVector</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">BV.Vector</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">Int</span>
-<span style="color: #00ede1; font-weight: bold;">sumOnVector</span> l <span style="color: #dbdb95;">=</span> BV.foldl' fusedCalcOnFoldl <span style="color: #008b8b;">0</span> l
-</pre>
-</div>
-
-<p>
-This code performs the same operation, but using an io-stream instead of a vector. Every time we are receiving data from the external IO world (e.g. reading a file, receiving the answer of a query from a DBMS), we should use a stream, because it guarantees nice chunk-by-chunk processing of data, with constant memory usage. Note that many io-stream based libraries send data grouped in vector-like chunks, so in practice the processing of this data is not far from vector processing.
-</p>
-
-<div class="org-src-container">
-<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">sumOnStream</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">BV.Vector</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #34cae2;">Int</span>
-<span style="color: #00ede1; font-weight: bold;">sumOnStream</span> l <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
-  inS1 <span style="color: #dbdb95;">&lt;-</span> S.fromVector l
-  S.fold fusedCalcOnFoldl <span style="color: #008b8b;">0</span> inS1
-</pre>
-</div>
-
-<p>
-This code performs the same operation, but using a channel instead of an io-stream. The channel is more robust in case of concurrent access, because it guarantees fair hold/resumption of threads. So it is also a mechanism for scheduling threads. A channel can support two or more concurrently threads. On the contrary an io-stream is only a unidirectional connection.
-</p>
-
-<div class="org-src-container">
-<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">sumOnChan</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">BV.Vector</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #34cae2;">Int</span>
-<span style="color: #00ede1; font-weight: bold;">sumOnChan</span> l <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
-  ch <span style="color: #dbdb95;">&lt;-</span> newChan
-
-  <span style="color: #8c8c8c;">(</span><span style="color: #ffad29; font-weight: bold;">_</span>, r<span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">&lt;-</span> concurrently
-              <span style="color: #8c8c8c;">(</span><span style="color: #ffad29; font-weight: bold;">do</span> BV.mapM_ <span style="color: #93a8c6;">(</span>writeChan ch<span style="color: #93a8c6;">)</span> l
-                  writeEOFChan ch<span style="color: #8c8c8c;">)</span>
-              <span style="color: #8c8c8c;">(</span>sumOnChan' ch <span style="color: #008b8b;">0</span><span style="color: #8c8c8c;">)</span>
-  return r
- <span style="color: #ffad29; font-weight: bold;">where</span>
-
-   sumOnChan' ch <span style="color: #dbdb95;">!</span>s <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
-     mx <span style="color: #dbdb95;">&lt;-</span> readChan ch
-     <span style="color: #ffad29; font-weight: bold;">case</span> mx <span style="color: #ffad29; font-weight: bold;">of</span>
-       <span style="color: #34cae2;">Nothing</span> <span style="color: #dbdb95;">-&gt;</span> return s
-       <span style="color: #34cae2;">Just</span> x <span style="color: #dbdb95;">-&gt;</span> sumOnChan' ch <span style="color: #8c8c8c;">(</span>fusedCalcOnFoldl s x<span style="color: #8c8c8c;">)</span>
-</pre>
-</div>
-
-<p>
-These are the benchmarks:
-</p>
-
-<div class="org-src-container">
-<pre class="src src-screen">benchmarking list initial warm-up evaluation - not consider
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">1.015</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.014</span> ms .. <span style="color: #008b8b;">1.016</span> ms<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.000</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">1.016</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.015</span> ms .. <span style="color: #008b8b;">1.017</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">3.549</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">2.033</span> &#956;s .. <span style="color: #008b8b;">6.147</span> &#956;s<span style="color: #8c8c8c;">)</span>
-
-benchmarking sumOnVector
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">12.31</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">12.27</span> ms .. <span style="color: #008b8b;">12.39</span> ms<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.999</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">12.30</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">12.29</span> ms .. <span style="color: #008b8b;">12.35</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">65.40</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">17.85</span> &#956;s .. <span style="color: #008b8b;">131.2</span> &#956;s<span style="color: #8c8c8c;">)</span>
-
-benchmarking sumOnStream
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">101.6</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">100.7</span> ms .. <span style="color: #008b8b;">102.9</span> ms<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.999</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">101.2</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">99.85</span> ms .. <span style="color: #008b8b;">101.8</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">1.342</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">383.1</span> &#956;s .. <span style="color: #008b8b;">2.127</span> ms<span style="color: #8c8c8c;">)</span>
-
-benchmarking sumOnChan
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">1.171</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.107</span> s .. <span style="color: #008b8b;">1.272</span> s<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">0.999</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.998</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">1.161</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.144</span> s .. <span style="color: #008b8b;">1.172</span> s<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">16.02</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.0</span> s .. <span style="color: #008b8b;">18.41</span> ms<span style="color: #8c8c8c;">)</span>
-variance introduced by outliers: <span style="color: #008b8b;">19%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
-
-sumOnVector: <span style="color: #008b8b;">8338764493050923690</span>
-sumOnStream: <span style="color: #008b8b;">8338764493050923690</span>
-sumOnChan: <span style="color: #008b8b;">8338764493050923690</span>
-</pre>
-</div>
-
-<p>
-The io-stream is 10x times slower than the vector. But for processing IO data it makes sense, expecially if the data is received chunked inside vectors. And considering that we are comparing against the fastest possible vector, it is indeed a lot lot faster. 
-</p>
-
-<p>
-The channel is 10x times slower than the io-stream. It is a big difference, but we must remember that a channel offers also fair scheduling services between threads. So in reality here we are testing also the hold and resume of two threads for 500K times. So the time is not so bad. 
+There are no tests, but probably they can be similar to the `safeBrakect` case.
 </p>
 </div>
 </div>
 
-<div id="outline-container-org6f380f8" class="outline-4">
-<h4 id="org6f380f8"><span class="section-number-4">3.5.3</span> Derived pattern</h4>
-<div class="outline-text-4" id="text-3-5-3">
-</div><ol class="org-ol"><li><a id="orgd4bc546"></a>Intent<br /><div class="outline-text-5" id="text-3-5-3-1">
-<p>
-Process data in an efficient and robust way.
-</p>
-</div></li>
-<li><a id="orgd3051cc"></a>Solution<br /><div class="outline-text-5" id="text-3-5-3-2">
-<p>
-If the data is exchanged between threads, use channels because they guarantee fair scheduling between threads.
-</p>
-
-<p>
-If the data is received from a resource in the IO world (or is sent to IO world), use streams, because they guarantee fair/constant usage of memory.
-</p>
-
-<p>
-If the data is internal to thread, and the computation is local (it is done from the thread for answering to service requests), process it using vector-like operations.
-</p>
-</div></li></ol>
-</div>
-</div>
-<div id="outline-container-orgcf9cd5f" class="outline-3">
-<h3 id="orgcf9cd5f"><span class="section-number-3">3.6</span> Using threads for concurrent Tasks</h3>
-<div class="outline-text-3" id="text-3-6">
-<p>
-A concurrent Task is a sequence of operations that can interact with the IO world and/or other threads, and that can be executed concurrently with other tasks. 
-</p>
-</div>
-<div id="outline-container-org6d5eb3e" class="outline-4">
-<h4 id="org6d5eb3e"><span class="section-number-4">3.6.1</span> Task mapped to Operating System threads</h4>
-<div class="outline-text-4" id="text-3-6-1">
-<p>
-In traditional operating systems, tasks are implemented mapping them to threads. But context switch between threads is extremely slow on current CPUs. Threads have also some memory overhead. 
-</p>
-
-<p>
-Using OS threads for managing tasks does not scale well.
-</p>
-</div>
-</div>
-<div id="outline-container-orgcad7ae2" class="outline-4">
-<h4 id="orgcad7ae2"><span class="section-number-4">3.6.2</span> Tasks managed from services, using a queue of events</h4>
-<div class="outline-text-4" id="text-3-6-2">
-<p>
-A task can be managed directly from a Service, but each IO interaction can not block the Service, because it must serve also other clients. So the IO requests are managed as events put in an event queue, and they are resumed when the answer is arrived.
-</p>
-
-<p>
-The code structured in this way is a lot faster (e.g. NGINX event based model vs Apache thread model), but it is not readable, because we haven't any more the explicit sequence of actions of the Task. They are spread inside the Service, and the events in the queue.
-</p>
-</div>
-</div>
-<div id="outline-container-orgefcc496" class="outline-4">
-<h4 id="orgefcc496"><span class="section-number-4">3.6.3</span> Tasks mapped to Haskell internal threads</h4>
-<div class="outline-text-4" id="text-3-6-3">
-<p>
-Haskell threads are very cheap: they uses very few memory, and the context switch between a thread to another has a cost comparable to a function call. So there can be thousands of active threads in an Haskell application.
-</p>
-
-<p>
-When a service receives a complex request, it can create a thread for the task to accomplish. The code is comprehensible because it is a sequence of commands. The code is also fast because Haskell threads are cheap. The code is concurrent because the thread can interact with the IO world using MVars and channels, and it will be put in hold and resumed in an efficient and transparent way.
-</p>
-
-<p>
-So Haskell threads joins the benefits of events (fast concurrent code), and of threads (readable sequence of instructions).
-</p>
-</div>
-</div>
-<div id="outline-container-orga4da8b9" class="outline-4">
-<h4 id="orga4da8b9"><span class="section-number-4">3.6.4</span> Benchmarks</h4>
-<div class="outline-text-4" id="text-3-6-4">
-<p>
-We will process the elements of a vector, using a thread for each element, and a status MVar containing the current partial sum, and the number of the remaining elements to sum. When the count of elements to sum will reach 0, the last thread will write the final result on the MVar dedicated to the final result. The main thread will be resumed and it will return the result:
-</p>
-
-<div class="org-src-container">
-<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">sumUsingTasks</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">BV.Vector</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #34cae2;">Int</span>
-<span style="color: #00ede1; font-weight: bold;">sumUsingTasks</span> l <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
-
-  finalResult <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">MVar</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">&lt;-</span> newEmptyMVar
-
-  currentState <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">MVar</span> <span style="color: #8c8c8c;">(</span><span style="color: #34cae2;">Int</span>, <span style="color: #34cae2;">Int</span><span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">&lt;-</span> newEmptyMVar
-
-  nrOfElements <span style="color: #dbdb95;">&lt;-</span> BV.foldM <span style="color: #8c8c8c;">(</span><span style="color: #dbdb95;">\</span>i x <span style="color: #dbdb95;">-&gt;</span> <span style="color: #ffad29; font-weight: bold;">do</span> forkIO <span style="color: #dbdb95;">$</span> sumTask x finalResult currentState
-                                       return <span style="color: #dbdb95;">$</span> i <span style="color: #dbdb95;">+</span> <span style="color: #008b8b;">1</span><span style="color: #8c8c8c;">)</span> <span style="color: #008b8b;">0</span> l
-
-  putMVar currentState <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0</span>, nrOfElements<span style="color: #8c8c8c;">)</span>
-
-  takeMVar finalResult
-
- <span style="color: #ffad29; font-weight: bold;">where</span>
-
-   sumTask <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">MVar</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">MVar</span> <span style="color: #8c8c8c;">(</span><span style="color: #34cae2;">Int</span>, <span style="color: #34cae2;">Int</span><span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #8c8c8c;">()</span>
-   sumTask x finalResult currentState <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
-     <span style="color: #8c8c8c;">(</span>s1, leftSums<span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">&lt;-</span> takeMVar currentState
-     <span style="color: #ffad29; font-weight: bold;">let</span> <span style="color: #dbdb95;">!</span>currentState2<span style="color: #dbdb95;">@</span><span style="color: #8c8c8c;">(</span><span style="color: #dbdb95;">!</span>s2, <span style="color: #dbdb95;">!</span>leftSums2<span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">=</span> <span style="color: #8c8c8c;">(</span>fusedCalcOnFoldl s1 x, leftSums <span style="color: #dbdb95;">-</span> <span style="color: #008b8b;">1</span><span style="color: #8c8c8c;">)</span>
-     <span style="color: #ffad29; font-weight: bold;">case</span> leftSums2 <span style="color: #ffad29; font-weight: bold;">of</span>
-       <span style="color: #008b8b;">0</span> <span style="color: #dbdb95;">-&gt;</span> putMVar finalResult s2
-       <span style="color: #ffad29; font-weight: bold;">_</span> <span style="color: #dbdb95;">-&gt;</span> putMVar currentState currentState2 
-
-</pre>
-</div>
-
-<p>
-This is a rather stressing algorithm:
-</p>
-<ul class="org-ul">
-<li>there is a thread for each element of the vector (500K in our case)</li>
-<li>they are all in hold on the status MVar</li>
-<li>they will be resumed one time, they will update the sum, and then terminate</li>
-</ul>
-
-<p>
-These are the benchmarks:
-</p>
-
-<div class="org-src-container">
-<pre class="src src-screen">benchmarking list initial warm-up evaluation - not consider
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">1.010</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.009</span> ms .. <span style="color: #008b8b;">1.011</span> ms<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.000</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">1.011</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.011</span> ms .. <span style="color: #008b8b;">1.012</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">2.687</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">2.224</span> &#956;s .. <span style="color: #008b8b;">3.333</span> &#956;s<span style="color: #8c8c8c;">)</span>
-
-benchmarking sumOnChan
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">1.198</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.156</span> s .. <span style="color: #008b8b;">1.237</span> s<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span>NaN R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">1.223</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.212</span> s .. <span style="color: #008b8b;">1.229</span> s<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">9.798</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.0</span> s .. <span style="color: #008b8b;">10.65</span> ms<span style="color: #8c8c8c;">)</span>
-variance introduced by outliers: <span style="color: #008b8b;">19%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
-
-benchmarking sumUsingTasks
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">4.002</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">3.405</span> s .. <span style="color: #008b8b;">4.490</span> s<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">0.997</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.991</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">3.937</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">3.827</span> s .. <span style="color: #008b8b;">4.007</span> s<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">105.7</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.0</span> s .. <span style="color: #008b8b;">121.7</span> ms<span style="color: #8c8c8c;">)</span>
-variance introduced by outliers: <span style="color: #008b8b;">19%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
-
-sumOnChan: <span style="color: #008b8b;">8338764493050923690</span>
-sumUsingTasks: <span style="color: #008b8b;">8338764493050923690</span>
-</pre>
-</div>
-<div class="org-src-container">
-<pre class="src src-screen"><span style="color: #008b8b;">1289</span> MB total memory<span style="color: #ffad29; font-weight: bold;"> in</span> use <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0</span> MB lost due to fragmentation<span style="color: #8c8c8c;">)</span>
-</pre>
-</div>
-
-<p>
-The `sumOnChan` version using only two threads (a producer and a consumer) and a shared channel receiving 500K elements, required a little more than 1s. The version using 500K concurrent threads required 4s, but 1.2GB of RAM. 
-</p>
-
-<p>
-The benchmark shows that Haskell can scale to an high number of threads, and so we can map each active task to a thread. 
-</p>
-</div>
-</div>
-<div id="outline-container-org7d52724" class="outline-4">
-<h4 id="org7d52724"><span class="section-number-4">3.6.5</span> Derived pattern</h4>
-<div class="outline-text-4" id="text-3-6-5">
-</div><ol class="org-ol"><li><a id="org9c27083"></a>Intent<br /><div class="outline-text-5" id="text-3-6-5-1">
-<p>
-Process complex requests (Tasks) using readable but efficient code.
-</p>
-</div></li>
-<li><a id="org2ef3b65"></a>Solution<br /><div class="outline-text-5" id="text-3-6-5-2">
-<p>
-Map each active request to a Task that is a sequence of (concurrent) actions, and implement the task using an Haskell thread. 
-</p>
-</div></li></ol>
-</div>
-</div>
-</div>
-<div id="outline-container-org77525f7" class="outline-2">
-<h2 id="org77525f7"><span class="section-number-2">4</span> Local optimizations</h2>
-<div class="outline-text-2" id="text-4">
-<p>
-Local optimization matters also in case of concurrent code.
-</p>
-</div>
-<div id="outline-container-org8fe27ed" class="outline-3">
-<h3 id="org8fe27ed"><span class="section-number-3">4.1</span> Haskell run-time overview</h3>
-<div class="outline-text-3" id="text-4-1">
-<p>
-For writing reasonable code from the beginning, and understanding the profiler hints, one must have a general idea of the Haskell run-time. The main concepts are:
-</p>
-<ul class="org-ul">
-<li>thunk: instead of the result of an expression (a value), a thunk contains a call to the code calculating the expression result</li>
-<li>lazy evaluation: an expression is evaluated only when/if it is really needed. So initially an expression is represented by a thunk. The first time its value is needed, the thunk is replaced with the result of the code. Subsequent evaluation of the same thunk returns directly the result of the thunk, without recalculating it.</li>
-<li>strict evaluation: an expression is immediately calculated, without using a thunk, bypassing all the lazy evaluation machinery</li>
-<li>not fully evaluated value: a value can be composed of parts (other values), and each value can be represented as a thunk pointing to the code calculating it. Note that all the lazy evaluation concepts can be applied to values, also because values are expressions.</li>
-<li>pull model: if an IO action, or a strict expression, requires the value of a thunk, then the thunk is evaluated calling the corresponding code. If the thunk contains other thunks, these thunks are recursively evaluated. Think to a graph where each node is a thunk. You select a thunk, evaluate it, and all connected thunks are evaluated. It is a sort of evaluation on demand, that is starting from the consumer of values, and not in advance from the producer. If only a subset of the graph is (momentary) required, then only a part of the graph will be evaluated. The pull model can represent also values. You can have part of a value not fully evaluated/expanded, and you expand the graph representing the value on demand. For many types of applications (e.g. reactive programming, nested data type analysis) the pull model is the right model, and it is given for free from the Haskell run-time. For other applications it is not the right model, and you had to fight for removing its inefficiencies.</li>
-<li>NFData/Normal Form: a fully evaluated value, without sub parts expressed by thunks</li>
-<li>Weak Head Normal Form (WHNF): a value with its first constructor (its initial part) fully evaluated, e.g. in `Just &lt;some-unevaluated-thunk&gt;` we have the `Just` part fully evaluated (we know that it is not Nothing), but the sub parts can be still unevaluated.</li>
-<li>unboxed value: a value represented directly, without any indirection. For example an unboxed vector of `Int`, is a vector containing directly the `Int`, and not pointer/references/thunks to `Int`. Pros: their access is fast. Cons: they can not be lazily evaluated (pull model) or shared.</li>
-<li>boxed value: a value stored as a thunk/reference to it, instead of directly.</li>
-<li>fusion: expressions generating intermediate data structures are transformed from the compiler in equivalent expressions, not generating all of them. Haskell libraries can specify rewrite rules, applying these high-level optimizations. This increase the reuse and usefulness of code, because you can reuse small functions for composing bigger expressions, knowing that the compiler will transform and optimize the code.</li>
-<li>Haskell thread: calling/resuming a thread in Haskell has the cost of a function call, so they can be used like events in other languages, because they have a very low overhead.</li>
-<li>OS thread: a native thread of the operating system. Context switch is very heavy, and there can not be many threads of this type without saturating the system. Note that performances of modern CPU suffers a lot in case of context switch (10x/100x slower), so usually high performing applications starts a thread for each core, and then manages their operations as events (e.g. Apache web server vs NGINX).</li>
-<li>foreign function call: call to a function in C. Often Haskell types had to be converted to C format and vice-versa, so it can be costly respect native Haskell functions.</li>
-</ul>
-</div>
-</div>
-<div id="outline-container-orgb6b7a80" class="outline-3">
-<h3 id="orgb6b7a80"><span class="section-number-3">4.2</span> Forcing strict evaluation</h3>
-<div class="outline-text-3" id="text-4-2">
+<div id="outline-container-org771007b" class="outline-3">
+<h3 id="org771007b"><span class="section-number-3">2.4</span> Forcing strict evaluation</h3>
+<div class="outline-text-3" id="text-2-4">
 <p>
 This function applies some passages of random number generation using the elements of an array as parameters. It uses `foldl'` that is a strict (and fast) version of `foldl`, and it works on boxed vectors, that is one of the fastest Haskell data structures. If converted to imperative code, it is a series of simple loops. So it should be fast code.
 </p>
@@ -1201,17 +975,20 @@ processVectorsBV result: <span style="color: #008b8b;">3695476</span>
 <pre class="src src-screen"><span style="color: #008b8b;">9</span> MB total memory<span style="color: #ffad29; font-weight: bold;"> in</span> use <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">4</span> MB lost due to fragmentation<span style="color: #8c8c8c;">)</span>
 </pre>
 </div>
-</div>
 
-<div id="outline-container-org451000b" class="outline-4">
-<h4 id="org451000b"><span class="section-number-4">4.2.1</span> Derived pattern</h4>
-<div class="outline-text-4" id="text-4-2-1">
-</div><ol class="org-ol"><li><a id="org979fc14"></a>Intent<br /><div class="outline-text-5" id="text-4-2-1-1">
+<p>
+It is not really a bug, but a warning about the fact that GHC is not always good at infering when internal code is strict or not.
+</p>
+</div>
+<div id="outline-container-org04d9645" class="outline-4">
+<h4 id="org04d9645"><span class="section-number-4">2.4.1</span> Derived pattern</h4>
+<div class="outline-text-4" id="text-2-4-1">
+</div><ol class="org-ol"><li><a id="org9d99a71"></a>Intent<br /><div class="outline-text-5" id="text-2-4-1-1">
 <p>
 Having elegant but efficient Haskell code.
 </p>
 </div></li>
-<li><a id="orgabd4f3e"></a>Solution<br /><div class="outline-text-5" id="text-4-2-1-2">
+<li><a id="org112caa9"></a>Solution<br /><div class="outline-text-5" id="text-2-4-1-2">
 <p>
 First write elegant code. Then use faster data structures. Add strict annotations in internal expressions, if you are sure that you are not interested to benefits of lazy evaluation. Profile the effect of each change.
 </p>
@@ -1222,132 +999,151 @@ Usually these optimizations are easy to apply to an existing Haskell code-base, 
 </div></li></ol>
 </div>
 </div>
-
-<div id="outline-container-orgefcb1e2" class="outline-3">
-<h3 id="orgefcb1e2"><span class="section-number-3">4.3</span> Lazy evaluation can break resource management</h3>
-<div class="outline-text-3" id="text-4-3">
+<div id="outline-container-orgabb1196" class="outline-3">
+<h3 id="orgabb1196"><span class="section-number-3">2.5</span> Profiling and benchmarking are distinct operations</h3>
+<div class="outline-text-3" id="text-2-5">
 <p>
-Resource management is vital for robust production code. If too much file descriptors, database connections, or network sockets are left open, the system became unreliable. So resources must be acquired, used, and released in predictable way. But lazy evaluation renders the run-time behaviour more obscure and unpredictable, because there can be pending thunks instead of fully evaluated values. 
+For optimizing Haskell code you need a profiler, because developers can not easily predict where and why their code is slow. This is more true for an high-level language as Haskell, with a lot of compilation transformation pass, and a complex run-time. 
 </p>
 
 <p>
-Haskell uses `bracket` like functions for acquiring and releasing resources in a safe way. But current tested versions of `bracket` are buggy when not fully evaluated thunks are returned. In this example:
+The good news are that often the optimization of Haskell code involves very minimal changes: adding strict annotations, using alternative (but compatible) data structures, and so on. The static typing system reduces a lot the refactoring effort, and often the new code is immediately correct.
+</p>
+
+<p>
+Adding profiling instrumentation to the code, changes its run-time behaviour, and micro benchmarks done with <a href="https://hackage.haskell.org/package/criterion">Criterion</a> are not any more reliable. So profiling and benchmarking are two distinct operations, from an operational (not logical) point of view.
+</p>
+
+<p>
+These are the build options of the profiling instrumented version of the application:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">readFileContent1</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">FilePath</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #34cae2;">LText.Text</span>
-<span style="color: #00ede1; font-weight: bold;">readFileContent1</span> fileName
-  <span style="color: #dbdb95;">=</span> bracket
-      <span style="color: #8c8c8c;">(</span>openFile fileName <span style="color: #34cae2;">ReadMode</span><span style="color: #8c8c8c;">)</span>
-      hClose
-      <span style="color: #8c8c8c;">(</span><span style="color: #dbdb95;">\</span>handle <span style="color: #dbdb95;">-&gt;</span> <span style="color: #ffad29; font-weight: bold;">do</span> content <span style="color: #dbdb95;">&lt;-</span> LText.hGetContents handle
-                     return <span style="color: #dbdb95;">$</span> toUpperCase content<span style="color: #8c8c8c;">)</span>
+<pre class="src src-screen">.PHONY : prg-prof
+prg-prof:
+  stack build threads-post:exe:prof --executable-profiling --library-profiling  
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">printFileContent1</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">FilePath</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #8c8c8c;">()</span> 
-<span style="color: #00ede1; font-weight: bold;">printFileContent1</span> fileName <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
-  c <span style="color: #dbdb95;">&lt;-</span> readFileContent1 fileName
-  putStrLn <span style="color: #dbdb95;">$</span> LText.unpack c
+<pre class="src src-screen">executable prof
+  ghc-options: -O2 -threaded -fprof-auto -rtsopts
 </pre>
 </div>
 
-<ul class="org-ul">
-<li>the acquired resource is the file descriptor</li>
-<li>the computation done using the resource is the reading of the file content</li>
-<li>the result is a not fully evaluated thunk, because `Data.Text.Lazy.readFileContent` read the file content chunk by chunk, and only on demand when really needed</li>
-</ul>
-
 <p>
-What is the behaviour of Haskell run-time in this case?
-</p>
-<ul class="org-ul">
-<li>if the resource is left open until the thunk is fully evaluated, we have a potential resource leak, because we have no guarantee at run-time of when (or if) the thunk will be fully evaluated</li>
-<li>if the resource is closed before the thunk is fully evaluated, there will be an exception because during thunk evaluation the resource is not any more acquired</li>
-</ul>
-
-<p>
-Up to date it is the worst possible behaviour: the resource is closed before thunk evaluation, but no exceptions is raised during thunk evaluation, and instead the file is considered as empty. So it is clearly a bug (already signaled).
-</p>
-
-<p>
-Obviously this is a rather artificial example, but it can appear also in real world code, because there can be parts of a result managed from the run-time as not fully evaluated thunks. 
-</p>
-</div>
-<div id="outline-container-orge5a0a19" class="outline-4">
-<h4 id="orge5a0a19"><span class="section-number-4">4.3.1</span> The solution</h4>
-<div class="outline-text-4" id="text-4-3-1">
-<p>
-I created a safe version of bracket, returning a fully evaluated value:
+This is a synthetic benchmark testing effects of fusion on list and streams:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-haskell"><span style="color: #e67128;">-- | Fully evaluate the returned result, intercepting and rethrowing all exceptions.</span>
-<span style="color: #e67128;">--   If during exception management, the resource `release` produce errors,</span>
-<span style="color: #e67128;">--   then only the parent exception of the `compute` function is rethrowned.</span>
-<span style="color: #e67128;">--   </span><span style="color: #d0bf8f;">NOTE</span><span style="color: #e67128;">: returning a fully evaluated value assures that the resources can be</span>
-<span style="color: #e67128;">--   released correctly, because it is not any more needed.</span>
-<span style="color: #00ede1; font-weight: bold;">safeBracket</span>
-  <span style="color: #dbdb95;">::</span>  <span style="color: #ffad29; font-weight: bold;">forall</span> m a b c <span style="color: #dbdb95;">.</span> <span style="color: #8c8c8c;">(</span><span style="color: #34cae2;">MonadMask</span> m, <span style="color: #34cae2;">NFData</span> c<span style="color: #8c8c8c;">)</span>
-  <span style="color: #dbdb95;">=&gt;</span> m a
-  <span style="color: #e67128;">-- ^ acquire the resource</span>
-  <span style="color: #dbdb95;">-&gt;</span> <span style="color: #8c8c8c;">(</span><span style="color: #34cae2;">Maybe</span> <span style="color: #34cae2;">SomeException</span> <span style="color: #dbdb95;">-&gt;</span> a <span style="color: #dbdb95;">-&gt;</span> m b<span style="color: #8c8c8c;">)</span>
-  <span style="color: #e67128;">-- ^ release the resource at the end of normal result computation, or in case of an exception.</span>
-  <span style="color: #dbdb95;">-&gt;</span> <span style="color: #8c8c8c;">(</span>a <span style="color: #dbdb95;">-&gt;</span> m c<span style="color: #8c8c8c;">)</span>
-  <span style="color: #e67128;">-- ^ compute the result</span>
-  <span style="color: #dbdb95;">-&gt;</span> m c
-<span style="color: #00ede1; font-weight: bold;">safeBracket</span> acquire release compute <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
-  <span style="color: #dbdb95;">!</span>resource <span style="color: #dbdb95;">&lt;-</span> acquire
-  withException
-    <span style="color: #8c8c8c;">(</span><span style="color: #ffad29; font-weight: bold;">do</span> <span style="color: #dbdb95;">!</span>r <span style="color: #dbdb95;">&lt;-</span> force <span style="color: #dbdb95;">&lt;$!&gt;</span> compute resource
-        release <span style="color: #34cae2;">Nothing</span> resource
-        return r<span style="color: #8c8c8c;">)</span>
-    <span style="color: #8c8c8c;">(</span><span style="color: #dbdb95;">\</span>exc <span style="color: #dbdb95;">-&gt;</span> <span style="color: #ffad29; font-weight: bold;">do</span> release <span style="color: #93a8c6;">(</span><span style="color: #34cae2;">Just</span> exc<span style="color: #93a8c6;">)</span> resource
-                throw exc<span style="color: #8c8c8c;">)</span>
+<pre class="src src-screen">benchmarking list initial warm-up evaluation - not consider
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">257.0</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">223.5</span> ms .. <span style="color: #008b8b;">312.4</span> ms<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">0.980</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.897</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">251.3</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">240.8</span> ms .. <span style="color: #008b8b;">266.7</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">16.16</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">2.199</span> ms .. <span style="color: #008b8b;">20.72</span> ms<span style="color: #8c8c8c;">)</span>
+variance introduced by outliers: <span style="color: #008b8b;">17%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
+
+benchmarking fusion list with foldl
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">43.63</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">43.57</span> ms .. <span style="color: #008b8b;">43.68</span> ms<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.000</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">43.64</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">43.61</span> ms .. <span style="color: #008b8b;">43.66</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">41.82</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">28.46</span> &#956;s .. <span style="color: #008b8b;">61.55</span> &#956;s<span style="color: #8c8c8c;">)</span>
+
+benchmarking fused list with foldl
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">15.93</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">15.92</span> ms .. <span style="color: #008b8b;">15.94</span> ms<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.000</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">15.93</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">15.92</span> ms .. <span style="color: #008b8b;">15.94</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">26.19</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">18.35</span> &#956;s .. <span style="color: #008b8b;">37.92</span> &#956;s<span style="color: #8c8c8c;">)</span>
+
+benchmarking fusion list with foldl<span style="color: #e67128;">'</span>
+<span style="color: #e67128;">time                 40.80 ms   (40.50 ms .. 41.36 ms)</span>
+<span style="color: #e67128;">                     1.000 R&#178;   (0.999 R&#178; .. 1.000 R&#178;)</span>
+<span style="color: #e67128;">mean                 40.66 ms   (40.51 ms .. 41.02 ms)</span>
+<span style="color: #e67128;">std dev              380.5 &#956;s   (45.48 &#956;s .. 603.7 &#956;s)</span>
+
+<span style="color: #e67128;">benchmarking fused list with foldl'</span>
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">16.18</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">16.14</span> ms .. <span style="color: #008b8b;">16.25</span> ms<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.999</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">16.17</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">16.15</span> ms .. <span style="color: #008b8b;">16.26</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">107.5</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">30.96</span> &#956;s .. <span style="color: #008b8b;">204.7</span> &#956;s<span style="color: #8c8c8c;">)</span>
+
+benchmarking fusion list with foldr
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">162.9</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">157.2</span> ms .. <span style="color: #008b8b;">174.0</span> ms<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">0.997</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.992</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">155.1</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">139.2</span> ms .. <span style="color: #008b8b;">159.4</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">9.849</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">960.6</span> &#956;s .. <span style="color: #008b8b;">14.80</span> ms<span style="color: #8c8c8c;">)</span>
+variance introduced by outliers: <span style="color: #008b8b;">13%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
+
+benchmarking fused list with foldr
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">32.89</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">31.03</span> ms .. <span style="color: #008b8b;">34.33</span> ms<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">0.987</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.968</span> R&#178; .. <span style="color: #008b8b;">0.995</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">31.74</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">30.04</span> ms .. <span style="color: #008b8b;">33.08</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">3.280</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">2.424</span> ms .. <span style="color: #008b8b;">4.402</span> ms<span style="color: #8c8c8c;">)</span>
+variance introduced by outliers: <span style="color: #008b8b;">45%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
+
+benchmarking io-stream
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">90.16</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">86.94</span> ms .. <span style="color: #008b8b;">94.61</span> ms<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">0.998</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.992</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">92.29</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">91.05</span> ms .. <span style="color: #008b8b;">94.38</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">2.415</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.162</span> ms .. <span style="color: #008b8b;">3.061</span> ms<span style="color: #8c8c8c;">)</span>
+
+benchmarking fused io-stream
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">35.34</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">35.00</span> ms .. <span style="color: #008b8b;">35.65</span> ms<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.999</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">34.60</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">34.38</span> ms .. <span style="color: #008b8b;">34.85</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">461.3</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">396.1</span> &#956;s .. <span style="color: #008b8b;">510.9</span> &#956;s<span style="color: #8c8c8c;">)</span>
+
+fusion list with foldl: <span style="color: #008b8b;">8338764493050923690</span>
+fusion list with foldr: <span style="color: #008b8b;">8338764493050923690</span>
+fused list with foldl: <span style="color: #008b8b;">8338764493050923690</span>
+fused list with foldr: <span style="color: #008b8b;">8338764493050923690</span>
+io-stream: <span style="color: #008b8b;">8338764493050923690</span>
+fused io-stream: <span style="color: #008b8b;">8338764493050923690</span>
 </pre>
 </div>
 
 <p>
-The drawbacks are that computations in two distinct brackets can not be fused together and optimized aggressively from the compiler, because they are two distinct and atomic computations. But this behaviour is in the spirit of safe resource management, where parallel resource acquisition is seen as a resource leak and not an optimization.
+Note: this benchmark is executed without activating at run-time the profiling options. 
 </p>
 
 <p>
-These are the differences executing the code using `bracket` and `safeBracket`:
+This benchmark shows that GHC is not applying automatic fusion on lists, because the hand-fused version is at least 3x faster. But this is a lie, introduced by the GHC profiler. Benchmarking the production code tells us that the compiler applies correctly fusion.
 </p>
-
-<div class="org-src-container">
-<pre class="src src-screen">File content using bad bracket: 
-
-
-File content using safe bracket: 
-THE MORNINNG HAS GOLD IN IT<span style="color: #e67128;">'S MOUTH</span>
-<span style="color: #e67128;">THE MORNINNG HAS GOLD IN IT'</span>S MOUTH
-THE MORNINNG HAS GOLD IN IT<span style="color: #e67128;">'S MOUTH</span>
-
-</pre>
 </div>
-</div>
-</div>
-
-<div id="outline-container-orgb41c9ca" class="outline-4">
-<h4 id="orgb41c9ca"><span class="section-number-4">4.3.2</span> Derived pattern</h4>
-<div class="outline-text-4" id="text-4-3-2">
-</div><ol class="org-ol"><li><a id="orgdeebce2"></a>Intent<br /><div class="outline-text-5" id="text-4-3-2-1">
+<div id="outline-container-orgc9ac68b" class="outline-4">
+<h4 id="orgc9ac68b"><span class="section-number-4">2.5.1</span> Derived pattern</h4>
+<div class="outline-text-4" id="text-2-5-1">
+</div><ol class="org-ol"><li><a id="org545cf76"></a>Intent<br /><div class="outline-text-5" id="text-2-5-1-1">
 <p>
-You have a computation using resources.
+Writing faster versions of an application.
 </p>
 </div></li>
-<li><a id="orgb69e2e4"></a>Solution<br /><div class="outline-text-5" id="text-4-3-2-2">
+<li><a id="orgc420189"></a>Solution<br /><div class="outline-text-5" id="text-2-5-1-2">
 <p>
-Enclose the computation inside `safeBracket`. It will act like a predictable transactions: when the value is required the resource is acquired, the code executed completely, and the resource will be closed immediately. 
+Use GHC profiler for macro optimizations, and Criterion for micro optimizations, but not both at the same time.
+</p>
+
+<p>
+If you want discover why/where an application is slow, use a version of the application compiled with GHC profiling options. It influences the run-time behaviour, but its information is useful for discovering what your application is doing. Note: compile and execute always with `-O` or `-O2` options, for profiling the real application. 
+</p>
+
+<p>
+If you want discover which version of a function is faster, you had to benchmark using Criterion on a no-profiling-instrumented code. So on the same code you want to use in production.
+</p>
+
+<p>
+If you want optimize concurrent and parallel code consider also code instrumented for <a href="https://wiki.haskell.org/ThreadScope">ThreadScope</a>.
 </p>
 </div></li></ol>
 </div>
 </div>
-<div id="outline-container-org14c5ee5" class="outline-3">
-<h3 id="org14c5ee5"><span class="section-number-3">4.4</span> Using streams for local IO processing</h3>
-<div class="outline-text-3" id="text-4-4">
+</div>
+<div id="outline-container-org652841a" class="outline-2">
+<h2 id="org652841a"><span class="section-number-2">3</span> Passed tests</h2>
+<div class="outline-text-2" id="text-3">
+</div><div id="outline-container-org1ab5dbd" class="outline-3">
+<h3 id="org1ab5dbd"><span class="section-number-3">3.1</span> Using streams for local IO processing</h3>
+<div class="outline-text-3" id="text-3-1">
 <p>
 Suppose you have data in the IO world (e.g. the content of a big file, the result of a DB query, network events), that you want process in chunks, using a constant amount of memory. Stream oriented libraries like <a href="https://hackage.haskell.org/package/io-streams">io-streams</a> and <a href="http://hackage.haskell.org/package/pipes">pipes</a> ensure that elements are generated and processed in a predictable way (usually one at a time). On the contrary lists and other data structures as LazyByteStrings, can exhibits space leaks problems, due to unpredictable lazy evaluation behaviour at run-time.
 </p>
@@ -1500,170 +1296,393 @@ Observe that:
 <li>curiously in this example `foldl` and `foldl'` have near the same speed, while `foldr` is 2x slower, but these are only micro benchmarks, and all can change in other examples</li>
 </ul>
 </div>
-<div id="outline-container-orgdeb6983" class="outline-4">
-<h4 id="orgdeb6983"><span class="section-number-4">4.4.1</span> Derived pattern</h4>
-<div class="outline-text-4" id="text-4-4-1">
-</div><ol class="org-ol"><li><a id="org6d33f7e"></a>Intent<br /><div class="outline-text-5" id="text-4-4-1-1">
+<div id="outline-container-org69b4dbc" class="outline-4">
+<h4 id="org69b4dbc"><span class="section-number-4">3.1.1</span> Derived pattern</h4>
+<div class="outline-text-4" id="text-3-1-1">
+</div><ol class="org-ol"><li><a id="org1541908"></a>Intent<br /><div class="outline-text-5" id="text-3-1-1-1">
 <p>
 Writing robust code for processing data from/to IO world. 
 </p>
 </div></li>
-<li><a id="org82c43aa"></a>Solution<br /><div class="outline-text-5" id="text-4-4-1-2">
+<li><a id="org92fadcf"></a>Solution<br /><div class="outline-text-5" id="text-3-1-1-2">
 <p>
 Streams are fast, and their overhead is negligible respect the involved IO operations. Stream processing is robust because they guarantee that only one element at a time is generated and processed. So there is no waste of memory and space leaks. On the contrary lists are prone to this type of problems.
 </p>
 </div></li></ol>
 </div>
 </div>
-<div id="outline-container-orgd5e530b" class="outline-3">
-<h3 id="orgd5e530b"><span class="section-number-3">4.5</span> Profiling and benchmarking are distinct operations</h3>
-<div class="outline-text-3" id="text-4-5">
+<div id="outline-container-org8dd084a" class="outline-3">
+<h3 id="org8dd084a"><span class="section-number-3">3.2</span> Using channels for concurrent interaction between services</h3>
+<div class="outline-text-3" id="text-3-2">
 <p>
-For optimizing Haskell code you need a profiler, because developers can not easily predict where and why their code is slow. This is more true for an high-level language as Haskell, with a lot of compilation transformation pass, and a complex run-time. 
+In Haskell you can map a local <a href="https://en.wikipedia.org/wiki/Service-orientation">Service</a> or <a href="https://en.wikipedia.org/wiki/Actor_model">Actor</a> to a thread. The thread can receive/send events using a shared channel. 
 </p>
 
 <p>
-The good news are that often the optimization of Haskell code involves very minimal changes: adding strict annotations, using alternative (but compatible) data structures, and so on. The static typing system reduces a lot the refactoring effort, and often the new code is immediately correct.
+Channels are not very fast because they must support sharing and synchronization between different threads. We will test their speed against io-streams and vectors.
 </p>
 
 <p>
-Adding profiling instrumentation to the code, changes its run-time behaviour, and micro benchmarks done with <a href="https://hackage.haskell.org/package/criterion">Criterion</a> are not any more reliable. So profiling and benchmarking are two distinct operations, from an operational (not logical) point of view.
-</p>
-
-<p>
-These are the build options of the profiling instrumented version of the application:
+This code applies the already known function `fuseCalcOnFoldl` on all the elements of an unboxed vector of `Int`. It is one of the fastest possible operations in Haskell, because it access directly the memory, without any overhead. An operation like this can only be executed locally from a thread, for processing internal data:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-screen">.PHONY : prg-prof
-prg-prof:
-  stack build threads-post:exe:prof --executable-profiling --library-profiling  
-</pre>
-</div>
-
-<div class="org-src-container">
-<pre class="src src-screen">executable prof
-  ghc-options: -O2 -threaded -fprof-auto -rtsopts
+<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">sumOnVector</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">BV.Vector</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">Int</span>
+<span style="color: #00ede1; font-weight: bold;">sumOnVector</span> l <span style="color: #dbdb95;">=</span> BV.foldl' fusedCalcOnFoldl <span style="color: #008b8b;">0</span> l
 </pre>
 </div>
 
 <p>
-This is a synthetic benchmark testing effects of fusion on list and streams:
+This code performs the same operation, but using an io-stream instead of a vector. Every time we are receiving data from the external IO world (e.g. reading a file, receiving the answer of a query from a DBMS), we should use a stream, because it guarantees nice chunk-by-chunk processing of data, with constant memory usage. Note that many io-stream based libraries send data grouped in vector-like chunks, so in practice the processing of this data is not far from vector processing.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">sumOnStream</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">BV.Vector</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #34cae2;">Int</span>
+<span style="color: #00ede1; font-weight: bold;">sumOnStream</span> l <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
+  inS1 <span style="color: #dbdb95;">&lt;-</span> S.fromVector l
+  S.fold fusedCalcOnFoldl <span style="color: #008b8b;">0</span> inS1
+</pre>
+</div>
+
+<p>
+This code performs the same operation, but using a channel instead of an io-stream. The channel is more robust in case of concurrent access, because it guarantees fair hold/resumption of threads. So it is also a mechanism for scheduling threads. A channel can support two or more concurrently threads. On the contrary an io-stream is only a unidirectional connection.
+</p>
+
+<div class="org-src-container">
+<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">sumOnChan</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">BV.Vector</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #34cae2;">Int</span>
+<span style="color: #00ede1; font-weight: bold;">sumOnChan</span> l <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
+  ch <span style="color: #dbdb95;">&lt;-</span> newChan
+
+  <span style="color: #8c8c8c;">(</span><span style="color: #ffad29; font-weight: bold;">_</span>, r<span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">&lt;-</span> concurrently
+              <span style="color: #8c8c8c;">(</span><span style="color: #ffad29; font-weight: bold;">do</span> BV.mapM_ <span style="color: #93a8c6;">(</span>writeChan ch<span style="color: #93a8c6;">)</span> l
+                  writeEOFChan ch<span style="color: #8c8c8c;">)</span>
+              <span style="color: #8c8c8c;">(</span>sumOnChan' ch <span style="color: #008b8b;">0</span><span style="color: #8c8c8c;">)</span>
+  return r
+ <span style="color: #ffad29; font-weight: bold;">where</span>
+
+   sumOnChan' ch <span style="color: #dbdb95;">!</span>s <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
+     mx <span style="color: #dbdb95;">&lt;-</span> readChan ch
+     <span style="color: #ffad29; font-weight: bold;">case</span> mx <span style="color: #ffad29; font-weight: bold;">of</span>
+       <span style="color: #34cae2;">Nothing</span> <span style="color: #dbdb95;">-&gt;</span> return s
+       <span style="color: #34cae2;">Just</span> x <span style="color: #dbdb95;">-&gt;</span> sumOnChan' ch <span style="color: #8c8c8c;">(</span>fusedCalcOnFoldl s x<span style="color: #8c8c8c;">)</span>
+</pre>
+</div>
+
+<p>
+These are the benchmarks:
 </p>
 
 <div class="org-src-container">
 <pre class="src src-screen">benchmarking list initial warm-up evaluation - not consider
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">257.0</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">223.5</span> ms .. <span style="color: #008b8b;">312.4</span> ms<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">0.980</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.897</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">251.3</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">240.8</span> ms .. <span style="color: #008b8b;">266.7</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">16.16</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">2.199</span> ms .. <span style="color: #008b8b;">20.72</span> ms<span style="color: #8c8c8c;">)</span>
-variance introduced by outliers: <span style="color: #008b8b;">17%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
-
-benchmarking fusion list with foldl
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">43.63</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">43.57</span> ms .. <span style="color: #008b8b;">43.68</span> ms<span style="color: #8c8c8c;">)</span>
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">1.015</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.014</span> ms .. <span style="color: #008b8b;">1.016</span> ms<span style="color: #8c8c8c;">)</span>
                      <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.000</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">43.64</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">43.61</span> ms .. <span style="color: #008b8b;">43.66</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">41.82</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">28.46</span> &#956;s .. <span style="color: #008b8b;">61.55</span> &#956;s<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">1.016</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.015</span> ms .. <span style="color: #008b8b;">1.017</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">3.549</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">2.033</span> &#956;s .. <span style="color: #008b8b;">6.147</span> &#956;s<span style="color: #8c8c8c;">)</span>
 
-benchmarking fused list with foldl
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">15.93</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">15.92</span> ms .. <span style="color: #008b8b;">15.94</span> ms<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.000</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">15.93</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">15.92</span> ms .. <span style="color: #008b8b;">15.94</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">26.19</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">18.35</span> &#956;s .. <span style="color: #008b8b;">37.92</span> &#956;s<span style="color: #8c8c8c;">)</span>
-
-benchmarking fusion list with foldl<span style="color: #e67128;">'</span>
-<span style="color: #e67128;">time                 40.80 ms   (40.50 ms .. 41.36 ms)</span>
-<span style="color: #e67128;">                     1.000 R&#178;   (0.999 R&#178; .. 1.000 R&#178;)</span>
-<span style="color: #e67128;">mean                 40.66 ms   (40.51 ms .. 41.02 ms)</span>
-<span style="color: #e67128;">std dev              380.5 &#956;s   (45.48 &#956;s .. 603.7 &#956;s)</span>
-
-<span style="color: #e67128;">benchmarking fused list with foldl'</span>
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">16.18</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">16.14</span> ms .. <span style="color: #008b8b;">16.25</span> ms<span style="color: #8c8c8c;">)</span>
+benchmarking sumOnVector
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">12.31</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">12.27</span> ms .. <span style="color: #008b8b;">12.39</span> ms<span style="color: #8c8c8c;">)</span>
                      <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.999</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">16.17</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">16.15</span> ms .. <span style="color: #008b8b;">16.26</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">107.5</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">30.96</span> &#956;s .. <span style="color: #008b8b;">204.7</span> &#956;s<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">12.30</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">12.29</span> ms .. <span style="color: #008b8b;">12.35</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">65.40</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">17.85</span> &#956;s .. <span style="color: #008b8b;">131.2</span> &#956;s<span style="color: #8c8c8c;">)</span>
 
-benchmarking fusion list with foldr
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">162.9</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">157.2</span> ms .. <span style="color: #008b8b;">174.0</span> ms<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">0.997</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.992</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">155.1</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">139.2</span> ms .. <span style="color: #008b8b;">159.4</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">9.849</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">960.6</span> &#956;s .. <span style="color: #008b8b;">14.80</span> ms<span style="color: #8c8c8c;">)</span>
-variance introduced by outliers: <span style="color: #008b8b;">13%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
-
-benchmarking fused list with foldr
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">32.89</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">31.03</span> ms .. <span style="color: #008b8b;">34.33</span> ms<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">0.987</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.968</span> R&#178; .. <span style="color: #008b8b;">0.995</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">31.74</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">30.04</span> ms .. <span style="color: #008b8b;">33.08</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">3.280</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">2.424</span> ms .. <span style="color: #008b8b;">4.402</span> ms<span style="color: #8c8c8c;">)</span>
-variance introduced by outliers: <span style="color: #008b8b;">45%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
-
-benchmarking io-stream
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">90.16</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">86.94</span> ms .. <span style="color: #008b8b;">94.61</span> ms<span style="color: #8c8c8c;">)</span>
-                     <span style="color: #008b8b;">0.998</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.992</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">92.29</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">91.05</span> ms .. <span style="color: #008b8b;">94.38</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">2.415</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.162</span> ms .. <span style="color: #008b8b;">3.061</span> ms<span style="color: #8c8c8c;">)</span>
-
-benchmarking fused io-stream
-<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">35.34</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">35.00</span> ms .. <span style="color: #008b8b;">35.65</span> ms<span style="color: #8c8c8c;">)</span>
+benchmarking sumOnStream
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">101.6</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">100.7</span> ms .. <span style="color: #008b8b;">102.9</span> ms<span style="color: #8c8c8c;">)</span>
                      <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.999</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
-mean                 <span style="color: #008b8b;">34.60</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">34.38</span> ms .. <span style="color: #008b8b;">34.85</span> ms<span style="color: #8c8c8c;">)</span>
-std dev              <span style="color: #008b8b;">461.3</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">396.1</span> &#956;s .. <span style="color: #008b8b;">510.9</span> &#956;s<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">101.2</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">99.85</span> ms .. <span style="color: #008b8b;">101.8</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">1.342</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">383.1</span> &#956;s .. <span style="color: #008b8b;">2.127</span> ms<span style="color: #8c8c8c;">)</span>
 
-fusion list with foldl: <span style="color: #008b8b;">8338764493050923690</span>
-fusion list with foldr: <span style="color: #008b8b;">8338764493050923690</span>
-fused list with foldl: <span style="color: #008b8b;">8338764493050923690</span>
-fused list with foldr: <span style="color: #008b8b;">8338764493050923690</span>
-io-stream: <span style="color: #008b8b;">8338764493050923690</span>
-fused io-stream: <span style="color: #008b8b;">8338764493050923690</span>
+benchmarking sumOnChan
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">1.171</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.107</span> s .. <span style="color: #008b8b;">1.272</span> s<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">0.999</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.998</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">1.161</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.144</span> s .. <span style="color: #008b8b;">1.172</span> s<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">16.02</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.0</span> s .. <span style="color: #008b8b;">18.41</span> ms<span style="color: #8c8c8c;">)</span>
+variance introduced by outliers: <span style="color: #008b8b;">19%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
+
+sumOnVector: <span style="color: #008b8b;">8338764493050923690</span>
+sumOnStream: <span style="color: #008b8b;">8338764493050923690</span>
+sumOnChan: <span style="color: #008b8b;">8338764493050923690</span>
 </pre>
 </div>
 
 <p>
-Note: this benchmark is executed without activating at run-time the profiling options. 
+The io-stream is 10x times slower than the vector. But for processing IO data it makes sense, expecially if the data is received chunked inside vectors. And considering that we are comparing against the fastest possible vector, it is indeed a lot lot faster. 
 </p>
 
 <p>
-This benchmark shows that GHC is not applying automatic fusion on lists, because the hand-fused version is at least 3x faster. But this is a lie, introduced by the GHC profiler. Benchmarking the production code tells us that the compiler applies correctly fusion.
+The channel is 10x times slower than the io-stream. It is a big difference, but we must remember that a channel offers also fair scheduling services between threads. So in reality here we are testing also the hold and resume of two threads for 500K times. So the time is not so bad. 
 </p>
 </div>
-<div id="outline-container-org101104b" class="outline-4">
-<h4 id="org101104b"><span class="section-number-4">4.5.1</span> Derived pattern</h4>
-<div class="outline-text-4" id="text-4-5-1">
-</div><ol class="org-ol"><li><a id="org5640fdd"></a>Intent<br /><div class="outline-text-5" id="text-4-5-1-1">
+
+<div id="outline-container-org486e278" class="outline-4">
+<h4 id="org486e278"><span class="section-number-4">3.2.1</span> Derived pattern</h4>
+<div class="outline-text-4" id="text-3-2-1">
+</div><ol class="org-ol"><li><a id="orgaf4f064"></a>Intent<br /><div class="outline-text-5" id="text-3-2-1-1">
 <p>
-Writing faster versions of an application.
+Process data in an efficient and robust way.
 </p>
 </div></li>
-<li><a id="org4baa215"></a>Solution<br /><div class="outline-text-5" id="text-4-5-1-2">
+<li><a id="org7c36a75"></a>Solution<br /><div class="outline-text-5" id="text-3-2-1-2">
 <p>
-Use GHC profiler for macro optimizations, and Criterion for micro optimizations, but not both at the same time.
+If the data is exchanged between threads, use channels because they guarantee fair scheduling between threads.
 </p>
 
 <p>
-If you want discover why/where an application is slow, use a version of the application compiled with GHC profiling options. It influences the run-time behaviour, but its information is useful for discovering what your application is doing. Note: compile and execute always with `-O` or `-O2` options, for profiling the real application. 
+If the data is received from a resource in the IO world (or is sent to IO world), use streams, because they guarantee fair/constant usage of memory.
 </p>
 
 <p>
-If you want discover which version of a function is faster, you had to benchmark using Criterion on a no-profiling-instrumented code. So on the same code you want to use in production.
+If the data is internal to thread, and the computation is local (it is done from the thread for answering to service requests), process it using vector-like operations.
+</p>
+</div></li></ol>
+</div>
+</div>
+<div id="outline-container-orgac8b7bf" class="outline-3">
+<h3 id="orgac8b7bf"><span class="section-number-3">3.3</span> Using threads for concurrent Tasks</h3>
+<div class="outline-text-3" id="text-3-3">
+<p>
+A concurrent Task is a sequence of operations that can interact with the IO world and/or other threads, and that can be executed concurrently with other tasks. 
+</p>
+</div>
+<div id="outline-container-org23d1fea" class="outline-4">
+<h4 id="org23d1fea"><span class="section-number-4">3.3.1</span> Task mapped to Operating System threads</h4>
+<div class="outline-text-4" id="text-3-3-1">
+<p>
+In traditional operating systems, tasks are implemented mapping them to threads. But context switch between threads is extremely slow on current CPUs. Threads have also some memory overhead. 
 </p>
 
 <p>
-If you want optimize concurrent and parallel code consider also code instrumented for <a href="https://wiki.haskell.org/ThreadScope">ThreadScope</a>.
+Using OS threads for managing tasks does not scale well.
+</p>
+</div>
+</div>
+<div id="outline-container-org4d8c33f" class="outline-4">
+<h4 id="org4d8c33f"><span class="section-number-4">3.3.2</span> Tasks managed from services, using a queue of events</h4>
+<div class="outline-text-4" id="text-3-3-2">
+<p>
+A task can be managed directly from a Service, but each IO interaction can not block the Service, because it must serve also other clients. So the IO requests are managed as events put in an event queue, and they are resumed when the answer is arrived.
+</p>
+
+<p>
+The code structured in this way is a lot faster (e.g. NGINX event based model vs Apache thread model), but it is not readable, because we haven't any more the explicit sequence of actions of the Task. They are spread inside the Service, and the events in the queue.
+</p>
+</div>
+</div>
+<div id="outline-container-org0de33ae" class="outline-4">
+<h4 id="org0de33ae"><span class="section-number-4">3.3.3</span> Tasks mapped to Haskell internal threads</h4>
+<div class="outline-text-4" id="text-3-3-3">
+<p>
+Haskell threads are very cheap: they uses very few memory, and the context switch between a thread to another has a cost comparable to a function call. So there can be thousands of active threads in an Haskell application.
+</p>
+
+<p>
+When a service receives a complex request, it can create a thread for the task to accomplish. The code is comprehensible because it is a sequence of commands. The code is also fast because Haskell threads are cheap. The code is concurrent because the thread can interact with the IO world using MVars and channels, and it will be put in hold and resumed in an efficient and transparent way.
+</p>
+
+<p>
+So Haskell threads joins the benefits of events (fast concurrent code), and of threads (readable sequence of instructions).
+</p>
+</div>
+</div>
+<div id="outline-container-org79ecff6" class="outline-4">
+<h4 id="org79ecff6"><span class="section-number-4">3.3.4</span> Benchmarks</h4>
+<div class="outline-text-4" id="text-3-3-4">
+<p>
+We will process the elements of a vector, using a thread for each element, and a status MVar containing the current partial sum, and the number of the remaining elements to sum. When the count of elements to sum will reach 0, the last thread will write the final result on the MVar dedicated to the final result. The main thread will be resumed and it will return the result:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-haskell"><span style="color: #00ede1; font-weight: bold;">sumUsingTasks</span> <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">BV.Vector</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #34cae2;">Int</span>
+<span style="color: #00ede1; font-weight: bold;">sumUsingTasks</span> l <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
+
+  finalResult <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">MVar</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">&lt;-</span> newEmptyMVar
+
+  currentState <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">MVar</span> <span style="color: #8c8c8c;">(</span><span style="color: #34cae2;">Int</span>, <span style="color: #34cae2;">Int</span><span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">&lt;-</span> newEmptyMVar
+
+  nrOfElements <span style="color: #dbdb95;">&lt;-</span> BV.foldM <span style="color: #8c8c8c;">(</span><span style="color: #dbdb95;">\</span>i x <span style="color: #dbdb95;">-&gt;</span> <span style="color: #ffad29; font-weight: bold;">do</span> forkIO <span style="color: #dbdb95;">$</span> sumTask x finalResult currentState
+                                       return <span style="color: #dbdb95;">$</span> i <span style="color: #dbdb95;">+</span> <span style="color: #008b8b;">1</span><span style="color: #8c8c8c;">)</span> <span style="color: #008b8b;">0</span> l
+
+  putMVar currentState <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0</span>, nrOfElements<span style="color: #8c8c8c;">)</span>
+
+  takeMVar finalResult
+
+ <span style="color: #ffad29; font-weight: bold;">where</span>
+
+   sumTask <span style="color: #dbdb95;">::</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">MVar</span> <span style="color: #34cae2;">Int</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">MVar</span> <span style="color: #8c8c8c;">(</span><span style="color: #34cae2;">Int</span>, <span style="color: #34cae2;">Int</span><span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">-&gt;</span> <span style="color: #34cae2;">IO</span> <span style="color: #8c8c8c;">()</span>
+   sumTask x finalResult currentState <span style="color: #dbdb95;">=</span> <span style="color: #ffad29; font-weight: bold;">do</span>
+     <span style="color: #8c8c8c;">(</span>s1, leftSums<span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">&lt;-</span> takeMVar currentState
+     <span style="color: #ffad29; font-weight: bold;">let</span> <span style="color: #dbdb95;">!</span>currentState2<span style="color: #dbdb95;">@</span><span style="color: #8c8c8c;">(</span><span style="color: #dbdb95;">!</span>s2, <span style="color: #dbdb95;">!</span>leftSums2<span style="color: #8c8c8c;">)</span> <span style="color: #dbdb95;">=</span> <span style="color: #8c8c8c;">(</span>fusedCalcOnFoldl s1 x, leftSums <span style="color: #dbdb95;">-</span> <span style="color: #008b8b;">1</span><span style="color: #8c8c8c;">)</span>
+     <span style="color: #ffad29; font-weight: bold;">case</span> leftSums2 <span style="color: #ffad29; font-weight: bold;">of</span>
+       <span style="color: #008b8b;">0</span> <span style="color: #dbdb95;">-&gt;</span> putMVar finalResult s2
+       <span style="color: #ffad29; font-weight: bold;">_</span> <span style="color: #dbdb95;">-&gt;</span> putMVar currentState currentState2 
+
+</pre>
+</div>
+
+<p>
+This is a rather stressing algorithm:
+</p>
+<ul class="org-ul">
+<li>there is a thread for each element of the vector (500K in our case)</li>
+<li>they are all in hold on the status MVar</li>
+<li>they will be resumed one time, they will update the sum, and then terminate</li>
+</ul>
+
+<p>
+These are the benchmarks:
+</p>
+
+<div class="org-src-container">
+<pre class="src src-screen">benchmarking list initial warm-up evaluation - not consider
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">1.010</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.009</span> ms .. <span style="color: #008b8b;">1.011</span> ms<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.000</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">1.011</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.011</span> ms .. <span style="color: #008b8b;">1.012</span> ms<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">2.687</span> &#956;s   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">2.224</span> &#956;s .. <span style="color: #008b8b;">3.333</span> &#956;s<span style="color: #8c8c8c;">)</span>
+
+benchmarking sumOnChan
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">1.198</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.156</span> s .. <span style="color: #008b8b;">1.237</span> s<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">1.000</span> R&#178;   <span style="color: #8c8c8c;">(</span>NaN R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">1.223</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">1.212</span> s .. <span style="color: #008b8b;">1.229</span> s<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">9.798</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.0</span> s .. <span style="color: #008b8b;">10.65</span> ms<span style="color: #8c8c8c;">)</span>
+variance introduced by outliers: <span style="color: #008b8b;">19%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
+
+benchmarking sumUsingTasks
+<span style="color: #ffad29; font-weight: bold;">time</span>                 <span style="color: #008b8b;">4.002</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">3.405</span> s .. <span style="color: #008b8b;">4.490</span> s<span style="color: #8c8c8c;">)</span>
+                     <span style="color: #008b8b;">0.997</span> R&#178;   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.991</span> R&#178; .. <span style="color: #008b8b;">1.000</span> R&#178;<span style="color: #8c8c8c;">)</span>
+mean                 <span style="color: #008b8b;">3.937</span> s    <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">3.827</span> s .. <span style="color: #008b8b;">4.007</span> s<span style="color: #8c8c8c;">)</span>
+std dev              <span style="color: #008b8b;">105.7</span> ms   <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0.0</span> s .. <span style="color: #008b8b;">121.7</span> ms<span style="color: #8c8c8c;">)</span>
+variance introduced by outliers: <span style="color: #008b8b;">19%</span> <span style="color: #8c8c8c;">(</span>moderately inflated<span style="color: #8c8c8c;">)</span>
+
+sumOnChan: <span style="color: #008b8b;">8338764493050923690</span>
+sumUsingTasks: <span style="color: #008b8b;">8338764493050923690</span>
+</pre>
+</div>
+<div class="org-src-container">
+<pre class="src src-screen"><span style="color: #008b8b;">1289</span> MB total memory<span style="color: #ffad29; font-weight: bold;"> in</span> use <span style="color: #8c8c8c;">(</span><span style="color: #008b8b;">0</span> MB lost due to fragmentation<span style="color: #8c8c8c;">)</span>
+</pre>
+</div>
+
+<p>
+The `sumOnChan` version using only two threads (a producer and a consumer) and a shared channel receiving 500K elements, required a little more than 1s. The version using 500K concurrent threads required 4s, but 1.2GB of RAM. 
+</p>
+
+<p>
+The benchmark shows that Haskell can scale to an high number of threads, and so we can map each active task to a thread. 
+</p>
+</div>
+</div>
+<div id="outline-container-org9281a5c" class="outline-4">
+<h4 id="org9281a5c"><span class="section-number-4">3.3.5</span> Derived pattern</h4>
+<div class="outline-text-4" id="text-3-3-5">
+</div><ol class="org-ol"><li><a id="org3ef9dbf"></a>Intent<br /><div class="outline-text-5" id="text-3-3-5-1">
+<p>
+Process complex requests (Tasks) using readable but efficient code.
+</p>
+</div></li>
+<li><a id="org22e5824"></a>Solution<br /><div class="outline-text-5" id="text-3-3-5-2">
+<p>
+Map each active request to a Task that is a sequence of (concurrent) actions, and implement the task using an Haskell thread. 
 </p>
 </div></li></ol>
 </div>
 </div>
 </div>
-<div id="outline-container-org3889138" class="outline-2">
-<h2 id="org3889138"><span class="section-number-2">5</span> Conclusions</h2>
+<div id="outline-container-orgc52d319" class="outline-2">
+<h2 id="orgc52d319"><span class="section-number-2">4</span> General guidelines</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+These are words without code&#x2026; :-)
+</p>
+</div>
+<div id="outline-container-org5466100" class="outline-3">
+<h3 id="org5466100"><span class="section-number-3">4.1</span> The mandatory book</h3>
+<div class="outline-text-3" id="text-4-1">
+<p>
+"<a href="http://chimera.labs.oreilly.com/books/1230000000929">Parallel and Concurrent Programming in Haskell</a>" by Simon Marlow is a very comprehensive and readable book on the subject. IMHO is a mandatory starting point, before writing any concurrent code.  
+</p>
+</div>
+</div>
+<div id="outline-container-org7ec634c" class="outline-3">
+<h3 id="org7ec634c"><span class="section-number-3">4.2</span> Sane libraries</h3>
+<div class="outline-text-3" id="text-4-2">
+<p>
+Haskell accumulated with years different ways for managing exceptions and threads. 
+</p>
+
+<p>
+<a href="http://hackage.haskell.org/package/safe-exceptions">safe-exceptions</a> and <a href="https://hackage.haskell.org/package/async">async</a> libraries simplifies a lot of things, and they are designed and tested for production environments.
+</p>
+</div>
+</div>
+<div id="outline-container-org7e0c2c1" class="outline-3">
+<h3 id="org7e0c2c1"><span class="section-number-3">4.3</span> The right concurrent programming paradigm</h3>
+<div class="outline-text-3" id="text-4-3">
+<p>
+The concurrent paradigm to use must be chosen during the initial design phase, according the characteristics of the problem domain. 
+</p>
+
+<p>
+For example in a bank application the optimistic approach (STM) wins because the majority of concurrent transactions will be on distinct bank accounts, and you must only manage the rare conflicts. On the contrary for a working queue the pessimistic approach (MVar, non-blocking updates, etc..) is better, because the concurrent threads will try to access the shared data structure mainly at the same time, and conflicts will be the norm, not the exception. In case of distributed process acting like services, an approach like the Erlang Actors Model is good, but not for parallel code working on nested parallel numeric data structures. And so on&#x2026;
+</p>
+</div>
+</div>
+<div id="outline-container-org44dc953" class="outline-3">
+<h3 id="org44dc953"><span class="section-number-3">4.4</span> External tools</h3>
+<div class="outline-text-3" id="text-4-4">
+<p>
+Some concurrent problems are already solved from external services/tools:
+</p>
+<ul class="org-ul">
+<li>a DBMS manages concurrent transactions "for free"</li>
+<li>a big-data engine compiles data processing code into efficient parallel code</li>
+</ul>
+</div>
+</div>
+<div id="outline-container-org8e192d9" class="outline-3">
+<h3 id="org8e192d9"><span class="section-number-3">4.5</span> Prototype</h3>
+<div class="outline-text-3" id="text-4-5">
+<p>
+Haskell supports many (all) concurrent paradigms, but maybe not at the same quality level. For example it supports light threads and Software Transactional Memory in a wonderful way, but probably the actor model is better supported in Erlang. Moreover some libraries are written initially for being included in scientific papers, and they can lack some refinements necessary for being used hassle-free in real world production environments. 
+</p>
+
+<p>
+So take time to test them before committing blindly. In any case the tools without any problem are the exceptions and not the norm in IT, so sorry for the FUD :-)
+</p>
+</div>
+</div>
+<div id="outline-container-org23d0119" class="outline-3">
+<h3 id="org23d0119"><span class="section-number-3">4.6</span> The Haskell run-time</h3>
+<div class="outline-text-3" id="text-4-6">
+<p>
+For writing reasonable code from the beginning, and understanding the profiler hints, one must have a general idea of the Haskell run-time. The main concepts are:
+</p>
+<ul class="org-ul">
+<li>thunk: instead of the result of an expression (a value), a thunk contains a call to the code calculating the expression result</li>
+<li>lazy evaluation: an expression is evaluated only when/if it is really needed. So initially an expression is represented by a thunk. The first time its value is needed, the thunk is replaced with the result of the code. Subsequent evaluation of the same thunk returns directly the result of the thunk, without recalculating it.</li>
+<li>strict evaluation: an expression is immediately calculated, without using a thunk, bypassing all the lazy evaluation machinery</li>
+<li>not fully evaluated value: a value can be composed of parts (other values), and each value can be represented as a thunk pointing to the code calculating it. Note that all the lazy evaluation concepts can be applied to values, also because values are expressions.</li>
+<li>pull model: if an IO action, or a strict expression, requires the value of a thunk, then the thunk is evaluated calling the corresponding code. If the thunk contains other thunks, these thunks are recursively evaluated. Think to a graph where each node is a thunk. You select a thunk, evaluate it, and all connected thunks are evaluated. It is a sort of evaluation on demand, that is starting from the consumer of values, and not in advance from the producer. If only a subset of the graph is (momentary) required, then only a part of the graph will be evaluated. The pull model can represent also values. You can have part of a value not fully evaluated/expanded, and you expand the graph representing the value on demand. For many types of applications (e.g. reactive programming, nested data type analysis) the pull model is the right model, and it is given for free from the Haskell run-time. For other applications it is not the right model, and you had to fight for removing its inefficiencies.</li>
+<li>NFData/Normal Form: a fully evaluated value, without sub parts expressed by thunks</li>
+<li>Weak Head Normal Form (WHNF): a value with its first constructor (its initial part) fully evaluated, e.g. in `Just &lt;some-unevaluated-thunk&gt;` we have the `Just` part fully evaluated (we know that it is not Nothing), but the sub parts can be still unevaluated.</li>
+<li>unboxed value: a value represented directly, without any indirection. For example an unboxed vector of `Int`, is a vector containing directly the `Int`, and not pointer/references/thunks to `Int`. Pros: their access is fast. Cons: they can not be lazily evaluated (pull model) or shared.</li>
+<li>boxed value: a value stored as a thunk/reference to it, instead of directly.</li>
+<li>fusion: expressions generating intermediate data structures are transformed from the compiler in equivalent expressions, not generating all of them. Haskell libraries can specify rewrite rules, applying these high-level optimizations. This increase the reuse and usefulness of code, because you can reuse small functions for composing bigger expressions, knowing that the compiler will transform and optimize the code.</li>
+<li>Haskell thread: calling/resuming a thread in Haskell has the cost of a function call, so they can be used like events in other languages, because they have a very low overhead.</li>
+<li>OS thread: a native thread of the operating system. Context switch is very heavy, and there can not be many threads of this type without saturating the system. Note that performances of modern CPU suffers a lot in case of context switch (10x/100x slower), so usually high performing applications starts a thread for each core, and then manages their operations as events (e.g. Apache web server vs NGINX).</li>
+<li>foreign function call: call to a function in C. Often Haskell types had to be converted to C format and vice-versa, so it can be costly respect native Haskell functions.</li>
+</ul>
+</div>
+</div>
+</div>
+<div id="outline-container-org91c1470" class="outline-2">
+<h2 id="org91c1470"><span class="section-number-2">5</span> Conclusions</h2>
 <div class="outline-text-2" id="text-5">
 <p>
 TODO write
 </p>
 </div>
 </div>
-<div id="outline-container-orga407e6e" class="outline-2">
-<h2 id="orga407e6e"><span class="section-number-2">6</span> About</h2>
+<div id="outline-container-orgda63e8b" class="outline-2">
+<h2 id="orgda63e8b"><span class="section-number-2">6</span> About</h2>
 <div class="outline-text-2" id="text-6">
 <p>
 I'm using Haskell in production, for <a href="https://www.asterisell.com/">rating VoIP calls</a>, but I'm not a true expert of concurrent programming, so feel free to fork and extend this document. The source code of this document is <a href="https://github.com/massimo-zaniboni/threads-post">here, on GitHub</a>. It is released under BSD2 license. It is written in <a href="http://orgmode.org/worg/org-contrib/babel/">Babel</a>, under Emacs <a href="http://orgmode.org/">Org mode</a>, and it contains live code, that is executed every time the document is generated.
@@ -1697,7 +1716,7 @@ Anything can change/improve with new versions of Stackage and GHC.
 </div>
 <div id="postamble" class="status">
 <p class="author">Author: Massimo Zaniboni</p>
-<p class="date">Created: 2017-09-01 ven 14:56</p>
+<p class="date">Created: 2017-09-01 ven 15:30</p>
 <p class="validation"><a href="http://validator.w3.org/check?uri=referer">Validate</a></p>
 </div>
 </body>

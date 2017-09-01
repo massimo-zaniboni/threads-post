@@ -2,26 +2,9 @@
 #+OPTIONS: toc:2
 
 * Abstract
-Haskell supports nearly all concurrent programming paradigms (e.g. mutable variables, software transactional memory, channels, futures, actors, compilation to CUDA/OpenCL), but some of them have minor problems, that became important when used in production.
-TODO improve 
-* The starting points
-"[[http://chimera.labs.oreilly.com/books/1230000000929][Parallel and Concurrent Programming in Haskell]]" by Simon Marlow is a very comprehensive and readable book on the subject. 
-
-Haskell accumulated with years different ways for managing exceptions and threads. [[http://hackage.haskell.org/package/safe-exceptions][safe-exceptions]] and [[https://hackage.haskell.org/package/async][async]] libraries simplifies a lot of things, and they are designed and tested for production environments.
-* Concurrent programming paradigms
-** Choose the right paradigm for the problem domain
- The concurrent paradigm to use must be chosen during the initial design phase, according the characteristics of the problem domain. 
-
- For example in a bank application the optimistic approach (STM) wins because the majority of concurrent transactions will be on distinct bank accounts, and you must only manage the rare conflicts. On the contrary for a working queue the pessimistic approach (MVar, non-blocking updates, etc..) is better, because the concurrent threads will try to access the shared data structure mainly at the same time, and conflicts will be the norm, not the exception. In case of distributed process acting like services, an approach like the Erlang Actors Model is good, but not for parallel code working on nested parallel numeric data structures. And so on...
-** Use external tools 
- Some concurrent problems can be already solved from external services/tools:
- - a DBMS manages concurrent transactions "for free"
- - a big-data engine compiles data processing code into efficient parallel code
-** Use a prototype
- Haskell supports many (all) concurrent paradigms, but maybe not at the same quality level. For example it supports light threads and Software Transactional Memory in a wonderful way, but probably the actor model is better supported in Erlang. Moreover some libraries are written initially for being included in scientific papers, and they can lack some refinements necessary for being used hassle-free in real world production environments. 
-
- So take time to test them before committing blindly. In any case the tools without any problem are the exceptions and not the norm in IT, so sorry for the FUD :-)
-** Default channels can waste memory
+Haskell supports nearly all concurrent programming paradigms (e.g. mutable variables, software transactional memory, futures, compilation to CUDA/OpenCL), but some of them have minor problems, that became important when used in production.
+* Failed tests
+** Default channels are wasting memory
 If a producer is faster than the consumer, it can fill the channel (and the memory) with data to process, instead of synchronizing with the speed of the slower consumer. The problem can manifest when the producer had to reprocess large batches of data.
  
 The solution: using bounded channels, so when the maximum capacity of the channel is reached, the producer will wait until the consumer has consumed some data.
@@ -81,10 +64,51 @@ The showud peak depends from the number of elements. In this case only 10. Inste
  You have a producer and consumer process, working concurrently/in-parallel.
 **** Solution
  Make them communicate using a shared channel, but making sure that the channel is bounded.
-** Using channels for concurrent interaction between services  
-In Haskell you can map a local [[https://en.wikipedia.org/wiki/Service-orientation][Service]] or [[https://en.wikipedia.org/wiki/Actor_model][Actor]] to a thread. The thread can receive/send events using a shared channel. 
-*** Channels with fully evaluated values
-Haskell channels by default can contain unevaluated thunks, instead of fully evaluated values. But this is not nice because:
+** Lazy evaluation breaks resource management
+ Resource management is vital for robust production code. If too much file descriptors, database connections, or network sockets are left open, the system became unreliable. So resources must be acquired, used, and released in predictable way. But lazy evaluation renders the run-time behaviour more obscure and unpredictable, because there can be pending thunks instead of fully evaluated values. 
+
+ Haskell uses `bracket` like functions for acquiring and releasing resources in a safe way. But current tested versions of `bracket` are buggy when not fully evaluated thunks are returned. In this example:
+
+     #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/BuggyLazyEvaluation.hs "-- bad-bracket" 
+     #+end_src
+
+     #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/BuggyLazyEvaluation.hs "-- lazy" 
+     #+end_src
+
+ - the acquired resource is the file descriptor
+ - the computation done using the resource is the reading of the file content
+ - the result is a not fully evaluated thunk, because `Data.Text.Lazy.readFileContent` read the file content chunk by chunk, and only on demand when really needed
+
+ What is the behaviour of Haskell run-time in this case?
+ - if the resource is left open until the thunk is fully evaluated, we have a potential resource leak, because we have no guarantee at run-time of when (or if) the thunk will be fully evaluated
+ - if the resource is closed before the thunk is fully evaluated, there will be an exception because during thunk evaluation the resource is not any more acquired
+
+ Up to date it is the worst possible behaviour: the resource is closed before thunk evaluation, but no exceptions is raised during thunk evaluation, and instead the file is considered as empty. So it is clearly a bug (already signaled).
+
+ Obviously this is a rather artificial example, but it can appear also in real world code, because there can be parts of a result managed from the run-time as not fully evaluated thunks. 
+*** The solution
+  I created a safe version of bracket, returning a fully evaluated value:
+
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+      ./untag.sh src/Process.hs "-- safe-bracket" 
+      #+end_src
+
+ The drawbacks are that computations in two distinct brackets can not be fused together and optimized aggressively from the compiler, because they are two distinct and atomic computations. But this behaviour is in the spirit of safe resource management, where parallel resource acquisition is seen as a resource leak and not an optimization.
+
+ These are the differences executing the code using `bracket` and `safeBracket`:
+
+      #+begin_src sh :wrap src screen :results output replace :exports results 
+ 	    stack exec prof -- test buggy-lazy-evaluation +RTS -N2 -RTS
+      #+end_src
+*** Derived pattern
+**** Intent
+ You have a computation using resources.
+**** Solution
+ Enclose the computation inside `safeBracket`. It will act like a predictable transactions: when the value is required the resource is acquired, the code executed completely, and the resource will be closed immediately. 
+** Channels with unevaluated values
+Haskell channels can contain unevaluated thunks, instead of fully evaluated values. But this is not nice because:
 - the receiving thread had to use its resources (CPU, and memory) for evaluating a thunk, and this complicate the reasoning about sharing of work between threads
 - the thunk can need resources like database connections, file handles, and so on, allocated on the producer service, it can not be evaluated on the consumer side
 - if the application switch to remote services, the network channel can only transmit fully evaluated values
@@ -95,7 +119,120 @@ So the best approach is sending always fully evaluated values. Obviously a fully
       ./untag.sh src/Process.hs "-- safe-channels" 
       #+end_src
 
-*** Benchmarks
+There are no tests, but probably they can be similar to the `safeBrakect` case.
+ 
+** Forcing strict evaluation
+This function applies some passages of random number generation using the elements of an array as parameters. It uses `foldl'` that is a strict (and fast) version of `foldl`, and it works on boxed vectors, that is one of the fastest Haskell data structures. If converted to imperative code, it is a series of simple loops. So it should be fast code.
+    
+     #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/Common.hs "-- comp2" 
+     #+end_src
+
+These are the benchmarks using a vector of 100,000 integers:
+ 
+#+INCLUDE: "./generated-resources/bench1.txt" src screen
+
+#+begin_src sh :wrap src screen :results output replace :exports results 
+grep -i "total memory" ./generated-resources/bench1.txt.mem
+#+end_src
+
+But by default Haskell code is lazy code. So the internal loops of this function are managed as thunks, also if in our case we want direct/strict computation. 
+
+Many optimizations in Haskell are easy to write. In our case it suffices to add bang patterns, forcing a value to be calculated in a strict way. These are the "new" internal expressions:
+
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/Common.hs "-- strict" 
+     #+end_src
+
+The effects at run-time are puzzling: the strict version uses 5x less RAM, but it is slightly slower.
+ 
+#+INCLUDE: "./generated-resources/bench2.txt" src screen
+#+begin_src sh :wrap src screen :results output replace :exports results 
+grep -i "total memory" ./generated-resources/bench2.txt.mem
+#+end_src
+
+It is not really a bug, but a warning about the fact that GHC is not always good at infering when internal code is strict or not.
+*** Derived pattern
+**** Intent
+Having elegant but efficient Haskell code.
+**** Solution
+First write elegant code. Then use faster data structures. Add strict annotations in internal expressions, if you are sure that you are not interested to benefits of lazy evaluation. Profile the effect of each change.
+
+Usually these optimizations are easy to apply to an existing Haskell code-base, and the code remain readable and elegant.
+** Profiling and benchmarking are distinct operations 
+For optimizing Haskell code you need a profiler, because developers can not easily predict where and why their code is slow. This is more true for an high-level language as Haskell, with a lot of compilation transformation pass, and a complex run-time. 
+
+ The good news are that often the optimization of Haskell code involves very minimal changes: adding strict annotations, using alternative (but compatible) data structures, and so on. The static typing system reduces a lot the refactoring effort, and often the new code is immediately correct.
+ 
+Adding profiling instrumentation to the code, changes its run-time behaviour, and micro benchmarks done with [[https://hackage.haskell.org/package/criterion][Criterion]] are not any more reliable. So profiling and benchmarking are two distinct operations, from an operational (not logical) point of view.
+
+ These are the build options of the profiling instrumented version of the application:
+
+       #+begin_src sh :wrap src screen :results output replace :exports results 
+      ./untag.sh ./Makefile "# tag-prof-build" 
+       #+end_src
+
+      #+begin_src sh :wrap src screen :results output replace :exports results 
+      ./untag.sh ./threads-post.cabal "-- tag-prof-build" 
+      #+end_src
+
+ This is a synthetic benchmark testing effects of fusion on list and streams:
+
+ #+INCLUDE: "./generated-resources/fusion-bench-prof.txt" src screen
+
+ Note: this benchmark is executed without activating at run-time the profiling options. 
+
+ This benchmark shows that GHC is not applying automatic fusion on lists, because the hand-fused version is at least 3x faster. But this is a lie, introduced by the GHC profiler. Benchmarking the production code tells us that the compiler applies correctly fusion.
+*** Derived pattern
+**** Intent
+Writing faster versions of an application.
+**** Solution 
+Use GHC profiler for macro optimizations, and Criterion for micro optimizations, but not both at the same time.
+
+If you want discover why/where an application is slow, use a version of the application compiled with GHC profiling options. It influences the run-time behaviour, but its information is useful for discovering what your application is doing. Note: compile and execute always with `-O` or `-O2` options, for profiling the real application. 
+
+If you want discover which version of a function is faster, you had to benchmark using Criterion on a no-profiling-instrumented code. So on the same code you want to use in production.
+
+If you want optimize concurrent and parallel code consider also code instrumented for [[https://wiki.haskell.org/ThreadScope][ThreadScope]].
+* Passed tests
+** Using streams for local IO processing 
+Suppose you have data in the IO world (e.g. the content of a big file, the result of a DB query, network events), that you want process in chunks, using a constant amount of memory. Stream oriented libraries like [[https://hackage.haskell.org/package/io-streams][io-streams]] and [[http://hackage.haskell.org/package/pipes][pipes]] ensure that elements are generated and processed in a predictable way (usually one at a time). On the contrary lists and other data structures as LazyByteStrings, can exhibits space leaks problems, due to unpredictable lazy evaluation behaviour at run-time.
+
+There is a minimal overhead in accessing stream elements, so they are not good for processing big data and for number-crunching. In these cases you can still import data using a stream, but the internal transformations can be done using other methods (vectors, parallel code, etc..), and then you can still use streams for exporting the transformed data to the IO world.
+
+When transformations are not very complex, you can use streams also for internal intermediate transformation passages, like in the next example. Moreover streams can be easily combined with parsers and other data transformations libraries, so they have a wide range of application.
+
+The majority of stream libraries do not support fusion of intermediate streams. This breaks some of the assumptions of elegant Haskell code: you can reuse and compose functions, being sure that the compiler will fuse/optimize intermediate passages. But in case of streams, the lack of fusion is not serious like in case of lists or vectors, because streams are never fully materialized. So you are repeating operations on one element, without fully materialization of the intermediate streams. The next benchmark will confirm that the problem is negligible in case of normal chain of streams, and it can became important only in case of very long chain of streams (unlikely) or of heavy number-crunching/parallel code (but this is not the domain of streams in any case). By the way: it seems that there is some work on supporting fusion also on streams: see https://twanvl.nl/blog/haskell/streaming-vector and http://www.yesodweb.com/blog/2016/02/first-class-stream-fusion.
+
+This is the code transforming a list content in the sum of only the odd elements, multiplied by 2.
+
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+      ./untag.sh src/Optimizations.hs "-- fusion-list" 
+      #+end_src
+
+This is the equivalent code using Streams:
+
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+      ./untag.sh src/Optimizations.hs "-- fusion-stream" 
+      #+end_src
+
+These are the benchmarks:
+
+ #+INCLUDE: "./generated-resources/fusion-bench.txt" src screen
+
+ Observe that:
+ - the difference between the lists fused from the compiler, and the hand-coded version is near 0, so GHC is effectively transforming elegant code (reusing already defined functions) in efficient code (like the hand-coded version)
+ - the chain of io-stream is only 25% slower than the hand-fused io-stream version, so not very important in practice, also because usually io-streams process data to/from the IO monad, and so the external actions will dominate the small io-stream overhead
+ - in this example io-streams are from 25% to 50% slower than lists, so they have more than acceptable speed for their usage scenario
+ - curiously in this example `foldl` and `foldl'` have near the same speed, while `foldr` is 2x slower, but these are only micro benchmarks, and all can change in other examples
+*** Derived pattern
+**** Intent
+Writing robust code for processing data from/to IO world. 
+**** Solution 
+Streams are fast, and their overhead is negligible respect the involved IO operations. Stream processing is robust because they guarantee that only one element at a time is generated and processed. So there is no waste of memory and space leaks. On the contrary lists are prone to this type of problems.
+** Using channels for concurrent interaction between services  
+In Haskell you can map a local [[https://en.wikipedia.org/wiki/Service-orientation][Service]] or [[https://en.wikipedia.org/wiki/Actor_model][Actor]] to a thread. The thread can receive/send events using a shared channel. 
+
 Channels are not very fast because they must support sharing and synchronization between different threads. We will test their speed against io-streams and vectors.
 
 This code applies the already known function `fuseCalcOnFoldl` on all the elements of an unboxed vector of `Int`. It is one of the fastest possible operations in Haskell, because it access directly the memory, without any overhead. An operation like this can only be executed locally from a thread, for processing internal data:
@@ -176,9 +313,27 @@ The benchmark shows that Haskell can scale to an high number of threads, and so 
 Process complex requests (Tasks) using readable but efficient code.
 **** Solution
 Map each active request to a Task that is a sequence of (concurrent) actions, and implement the task using an Haskell thread. 
-* Local optimizations
-Local optimization matters also in case of concurrent code.
-** Haskell run-time overview 
+* General guidelines
+These are words without code... :-)
+** The mandatory book
+ "[[http://chimera.labs.oreilly.com/books/1230000000929][Parallel and Concurrent Programming in Haskell]]" by Simon Marlow is a very comprehensive and readable book on the subject. IMHO is a mandatory starting point, before writing any concurrent code.  
+** Sane libraries
+ Haskell accumulated with years different ways for managing exceptions and threads. 
+
+  [[http://hackage.haskell.org/package/safe-exceptions][safe-exceptions]] and [[https://hackage.haskell.org/package/async][async]] libraries simplifies a lot of things, and they are designed and tested for production environments.
+** The right concurrent programming paradigm
+ The concurrent paradigm to use must be chosen during the initial design phase, according the characteristics of the problem domain. 
+
+ For example in a bank application the optimistic approach (STM) wins because the majority of concurrent transactions will be on distinct bank accounts, and you must only manage the rare conflicts. On the contrary for a working queue the pessimistic approach (MVar, non-blocking updates, etc..) is better, because the concurrent threads will try to access the shared data structure mainly at the same time, and conflicts will be the norm, not the exception. In case of distributed process acting like services, an approach like the Erlang Actors Model is good, but not for parallel code working on nested parallel numeric data structures. And so on...
+** External tools 
+ Some concurrent problems are already solved from external services/tools:
+ - a DBMS manages concurrent transactions "for free"
+ - a big-data engine compiles data processing code into efficient parallel code
+** Prototype
+ Haskell supports many (all) concurrent paradigms, but maybe not at the same quality level. For example it supports light threads and Software Transactional Memory in a wonderful way, but probably the actor model is better supported in Erlang. Moreover some libraries are written initially for being included in scientific papers, and they can lack some refinements necessary for being used hassle-free in real world production environments. 
+
+ So take time to test them before committing blindly. In any case the tools without any problem are the exceptions and not the norm in IT, so sorry for the FUD :-)
+** The Haskell run-time 
  For writing reasonable code from the beginning, and understanding the profiler hints, one must have a general idea of the Haskell run-time. The main concepts are:
  - thunk: instead of the result of an expression (a value), a thunk contains a call to the code calculating the expression result
  - lazy evaluation: an expression is evaluated only when/if it is really needed. So initially an expression is represented by a thunk. The first time its value is needed, the thunk is replaced with the result of the code. Subsequent evaluation of the same thunk returns directly the result of the thunk, without recalculating it.
@@ -193,156 +348,6 @@ Local optimization matters also in case of concurrent code.
  - Haskell thread: calling/resuming a thread in Haskell has the cost of a function call, so they can be used like events in other languages, because they have a very low overhead.
  - OS thread: a native thread of the operating system. Context switch is very heavy, and there can not be many threads of this type without saturating the system. Note that performances of modern CPU suffers a lot in case of context switch (10x/100x slower), so usually high performing applications starts a thread for each core, and then manages their operations as events (e.g. Apache web server vs NGINX).
  - foreign function call: call to a function in C. Often Haskell types had to be converted to C format and vice-versa, so it can be costly respect native Haskell functions.
-** Forcing strict evaluation
-This function applies some passages of random number generation using the elements of an array as parameters. It uses `foldl'` that is a strict (and fast) version of `foldl`, and it works on boxed vectors, that is one of the fastest Haskell data structures. If converted to imperative code, it is a series of simple loops. So it should be fast code.
-    
-     #+begin_src sh :wrap src haskell :results output replace :exports results 
-     ./untag.sh src/Common.hs "-- comp2" 
-     #+end_src
-
-These are the benchmarks using a vector of 100,000 integers:
- 
-#+INCLUDE: "./generated-resources/bench1.txt" src screen
-
-#+begin_src sh :wrap src screen :results output replace :exports results 
-grep -i "total memory" ./generated-resources/bench1.txt.mem
-#+end_src
-
-But by default Haskell code is lazy code. So the internal loops of this function are managed as thunks, also if in our case we want direct/strict computation. 
-
-Many optimizations in Haskell are easy to write. In our case it suffices to add bang patterns, forcing a value to be calculated in a strict way. These are the "new" internal expressions:
-
-      #+begin_src sh :wrap src haskell :results output replace :exports results 
-     ./untag.sh src/Common.hs "-- strict" 
-     #+end_src
-
-The effects at run-time are puzzling: the strict version uses 5x less RAM, but it is slightly slower.
- 
-#+INCLUDE: "./generated-resources/bench2.txt" src screen
-#+begin_src sh :wrap src screen :results output replace :exports results 
-grep -i "total memory" ./generated-resources/bench2.txt.mem
-#+end_src
-*** Derived pattern
-**** Intent
-Having elegant but efficient Haskell code.
-**** Solution
-First write elegant code. Then use faster data structures. Add strict annotations in internal expressions, if you are sure that you are not interested to benefits of lazy evaluation. Profile the effect of each change.
-
-Usually these optimizations are easy to apply to an existing Haskell code-base, and the code remain readable and elegant.
-
-** Lazy evaluation can break resource management
- Resource management is vital for robust production code. If too much file descriptors, database connections, or network sockets are left open, the system became unreliable. So resources must be acquired, used, and released in predictable way. But lazy evaluation renders the run-time behaviour more obscure and unpredictable, because there can be pending thunks instead of fully evaluated values. 
-
- Haskell uses `bracket` like functions for acquiring and releasing resources in a safe way. But current tested versions of `bracket` are buggy when not fully evaluated thunks are returned. In this example:
-
-     #+begin_src sh :wrap src haskell :results output replace :exports results 
-     ./untag.sh src/BuggyLazyEvaluation.hs "-- bad-bracket" 
-     #+end_src
-
-     #+begin_src sh :wrap src haskell :results output replace :exports results 
-     ./untag.sh src/BuggyLazyEvaluation.hs "-- lazy" 
-     #+end_src
-
- - the acquired resource is the file descriptor
- - the computation done using the resource is the reading of the file content
- - the result is a not fully evaluated thunk, because `Data.Text.Lazy.readFileContent` read the file content chunk by chunk, and only on demand when really needed
-
- What is the behaviour of Haskell run-time in this case?
- - if the resource is left open until the thunk is fully evaluated, we have a potential resource leak, because we have no guarantee at run-time of when (or if) the thunk will be fully evaluated
- - if the resource is closed before the thunk is fully evaluated, there will be an exception because during thunk evaluation the resource is not any more acquired
-
- Up to date it is the worst possible behaviour: the resource is closed before thunk evaluation, but no exceptions is raised during thunk evaluation, and instead the file is considered as empty. So it is clearly a bug (already signaled).
-
- Obviously this is a rather artificial example, but it can appear also in real world code, because there can be parts of a result managed from the run-time as not fully evaluated thunks. 
-*** The solution
-  I created a safe version of bracket, returning a fully evaluated value:
-
-      #+begin_src sh :wrap src haskell :results output replace :exports results 
-      ./untag.sh src/Process.hs "-- safe-bracket" 
-      #+end_src
-
- The drawbacks are that computations in two distinct brackets can not be fused together and optimized aggressively from the compiler, because they are two distinct and atomic computations. But this behaviour is in the spirit of safe resource management, where parallel resource acquisition is seen as a resource leak and not an optimization.
-
- These are the differences executing the code using `bracket` and `safeBracket`:
-
-      #+begin_src sh :wrap src screen :results output replace :exports results 
- 	    stack exec prof -- test buggy-lazy-evaluation +RTS -N2 -RTS
-      #+end_src
-*** Derived pattern
-**** Intent
- You have a computation using resources.
-**** Solution
- Enclose the computation inside `safeBracket`. It will act like a predictable transactions: when the value is required the resource is acquired, the code executed completely, and the resource will be closed immediately. 
-** Using streams for local IO processing 
-Suppose you have data in the IO world (e.g. the content of a big file, the result of a DB query, network events), that you want process in chunks, using a constant amount of memory. Stream oriented libraries like [[https://hackage.haskell.org/package/io-streams][io-streams]] and [[http://hackage.haskell.org/package/pipes][pipes]] ensure that elements are generated and processed in a predictable way (usually one at a time). On the contrary lists and other data structures as LazyByteStrings, can exhibits space leaks problems, due to unpredictable lazy evaluation behaviour at run-time.
-
-There is a minimal overhead in accessing stream elements, so they are not good for processing big data and for number-crunching. In these cases you can still import data using a stream, but the internal transformations can be done using other methods (vectors, parallel code, etc..), and then you can still use streams for exporting the transformed data to the IO world.
-
-When transformations are not very complex, you can use streams also for internal intermediate transformation passages, like in the next example. Moreover streams can be easily combined with parsers and other data transformations libraries, so they have a wide range of application.
-
-The majority of stream libraries do not support fusion of intermediate streams. This breaks some of the assumptions of elegant Haskell code: you can reuse and compose functions, being sure that the compiler will fuse/optimize intermediate passages. But in case of streams, the lack of fusion is not serious like in case of lists or vectors, because streams are never fully materialized. So you are repeating operations on one element, without fully materialization of the intermediate streams. The next benchmark will confirm that the problem is negligible in case of normal chain of streams, and it can became important only in case of very long chain of streams (unlikely) or of heavy number-crunching/parallel code (but this is not the domain of streams in any case). By the way: it seems that there is some work on supporting fusion also on streams: see https://twanvl.nl/blog/haskell/streaming-vector and http://www.yesodweb.com/blog/2016/02/first-class-stream-fusion.
-
-This is the code transforming a list content in the sum of only the odd elements, multiplied by 2.
-
-      #+begin_src sh :wrap src haskell :results output replace :exports results 
-      ./untag.sh src/Optimizations.hs "-- fusion-list" 
-      #+end_src
-
-This is the equivalent code using Streams:
-
-      #+begin_src sh :wrap src haskell :results output replace :exports results 
-      ./untag.sh src/Optimizations.hs "-- fusion-stream" 
-      #+end_src
-
-These are the benchmarks:
-
- #+INCLUDE: "./generated-resources/fusion-bench.txt" src screen
-
- Observe that:
- - the difference between the lists fused from the compiler, and the hand-coded version is near 0, so GHC is effectively transforming elegant code (reusing already defined functions) in efficient code (like the hand-coded version)
- - the chain of io-stream is only 25% slower than the hand-fused io-stream version, so not very important in practice, also because usually io-streams process data to/from the IO monad, and so the external actions will dominate the small io-stream overhead
- - in this example io-streams are from 25% to 50% slower than lists, so they have more than acceptable speed for their usage scenario
- - curiously in this example `foldl` and `foldl'` have near the same speed, while `foldr` is 2x slower, but these are only micro benchmarks, and all can change in other examples
-*** Derived pattern
-**** Intent
-Writing robust code for processing data from/to IO world. 
-**** Solution 
-Streams are fast, and their overhead is negligible respect the involved IO operations. Stream processing is robust because they guarantee that only one element at a time is generated and processed. So there is no waste of memory and space leaks. On the contrary lists are prone to this type of problems.
-** Profiling and benchmarking are distinct operations 
-For optimizing Haskell code you need a profiler, because developers can not easily predict where and why their code is slow. This is more true for an high-level language as Haskell, with a lot of compilation transformation pass, and a complex run-time. 
-
- The good news are that often the optimization of Haskell code involves very minimal changes: adding strict annotations, using alternative (but compatible) data structures, and so on. The static typing system reduces a lot the refactoring effort, and often the new code is immediately correct.
- 
-Adding profiling instrumentation to the code, changes its run-time behaviour, and micro benchmarks done with [[https://hackage.haskell.org/package/criterion][Criterion]] are not any more reliable. So profiling and benchmarking are two distinct operations, from an operational (not logical) point of view.
-
- These are the build options of the profiling instrumented version of the application:
-
-       #+begin_src sh :wrap src screen :results output replace :exports results 
-      ./untag.sh ./Makefile "# tag-prof-build" 
-       #+end_src
-
-      #+begin_src sh :wrap src screen :results output replace :exports results 
-      ./untag.sh ./threads-post.cabal "-- tag-prof-build" 
-      #+end_src
-
- This is a synthetic benchmark testing effects of fusion on list and streams:
-
- #+INCLUDE: "./generated-resources/fusion-bench-prof.txt" src screen
-
- Note: this benchmark is executed without activating at run-time the profiling options. 
-
- This benchmark shows that GHC is not applying automatic fusion on lists, because the hand-fused version is at least 3x faster. But this is a lie, introduced by the GHC profiler. Benchmarking the production code tells us that the compiler applies correctly fusion.
-*** Derived pattern
-**** Intent
-Writing faster versions of an application.
-**** Solution 
-Use GHC profiler for macro optimizations, and Criterion for micro optimizations, but not both at the same time.
-
-If you want discover why/where an application is slow, use a version of the application compiled with GHC profiling options. It influences the run-time behaviour, but its information is useful for discovering what your application is doing. Note: compile and execute always with `-O` or `-O2` options, for profiling the real application. 
-
-If you want discover which version of a function is faster, you had to benchmark using Criterion on a no-profiling-instrumented code. So on the same code you want to use in production.
-
-If you want optimize concurrent and parallel code consider also code instrumented for [[https://wiki.haskell.org/ThreadScope][ThreadScope]].
 * Conclusions
   TODO write
 * About
