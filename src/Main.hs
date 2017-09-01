@@ -102,7 +102,26 @@ main = do
 
             putStrLn $ "sumOnVector: " ++ show (Optimizations.sumOnVector l)
             putStrLn $ "sumOnStream: " ++ show r1 
-            putStrLn $ "sumOnChan: " ++ show r2 
+            putStrLn $ "sumOnChan: " ++ show r2
+
+    ["bench", "task1", seedS, vectorDimensionS]
+      -> do let seed :: Int = read seedS
+            let vectorDimension :: Int = read vectorDimensionS
+
+            let !l = force $ BV.fromListN vectorDimension $ L.take vectorDimension $ randoms $ mkStdGen seed
+ 
+            runMode
+              (Run defaultConfig Prefix [""])
+              [ bench "list initial warm-up evaluation - not consider" $ nf (BV.foldl (+) 0) l
+              , bench "sumOnChan" $ nfIO $ Optimizations.sumOnChan l
+              , bench "sumUsingTasks" $ nfIO $ Optimizations.sumUsingTasks l
+              ]
+
+            r1 <- Optimizations.sumOnChan l
+            r2 <- Optimizations.sumUsingTasks l
+
+            putStrLn $ "sumOnChan: " ++ show r1
+            putStrLn $ "sumUsingTasks: " ++ show r2
 
     ["test", "buggy-lazy-evaluation"]
       -> testBuggyLazyEvaluation

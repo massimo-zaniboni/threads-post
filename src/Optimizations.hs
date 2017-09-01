@@ -15,6 +15,7 @@ module Optimizations(
  , sumOnStream
  , sumOnChan
  , sumOnVector
+ , sumUsingTasks
              ) where
 
 import Common
@@ -22,6 +23,8 @@ import Process
 
 import Data.List as L
 import Control.Concurrent.Async
+import Control.Concurrent.MVar
+import Control.Concurrent (forkIO)
 import qualified Data.Vector.Unboxed as BV 
 import Control.DeepSeq
 import Control.Exception.Safe (catch, catchAny, onException, finally, handleAny, bracket
@@ -136,3 +139,34 @@ sumOnChan l = do
        Nothing -> return s
        Just x -> sumOnChan' ch (fusedCalcOnFoldl s x)
 -- sumOnChan-end
+
+-- ---------------------------
+-- Threads as Task
+
+-- sumUsingTasks-begin
+sumUsingTasks :: BV.Vector Int -> IO Int
+sumUsingTasks l = do
+
+  finalResult :: MVar Int <- newEmptyMVar
+
+  currentState :: MVar (Int, Int) <- newEmptyMVar
+
+  nrOfElements <- BV.foldM (\i x -> do forkIO $ sumTask x finalResult currentState
+                                       return $ i + 1) 0 l
+  
+  putMVar currentState (0, nrOfElements)
+
+  takeMVar finalResult
+  
+ where
+
+   sumTask :: Int -> MVar Int -> MVar (Int, Int) -> IO ()
+   sumTask x finalResult currentState = do
+     (s1, leftSums) <- takeMVar currentState
+     let !currentState2@(!s2, !leftSums2) = (fusedCalcOnFoldl s1 x, leftSums - 1)
+     case leftSums2 of
+       0 -> putMVar finalResult s2
+       _ -> putMVar currentState currentState2 
+   
+-- sumUsingTasks-end
+

@@ -2,7 +2,8 @@
 #+OPTIONS: toc:2
 
 * Abstract
-Haskell supports nearly all concurrent programming paradigms (e.g. mutable variables, software transactional memory, channels, futures, actors, compilation to CUDA/OpenCL), but some of them have minor problems, that became important when used in production. 
+Haskell supports nearly all concurrent programming paradigms (e.g. mutable variables, software transactional memory, channels, futures, actors, compilation to CUDA/OpenCL), but some of them have minor problems, that became important when used in production.
+TODO improve 
 * The starting points
 "[[http://chimera.labs.oreilly.com/books/1230000000929][Parallel and Concurrent Programming in Haskell]]" by Simon Marlow is a very comprehensive and readable book on the subject. 
 
@@ -80,6 +81,155 @@ The showud peak depends from the number of elements. In this case only 10. Inste
  You have a producer and consumer process, working concurrently/in-parallel.
 **** Solution
  Make them communicate using a shared channel, but making sure that the channel is bounded.
+** Using channels for concurrent interaction between services  
+In Haskell you can map a local [[https://en.wikipedia.org/wiki/Service-orientation][Service]] or [[https://en.wikipedia.org/wiki/Actor_model][Actor]] to a thread. The thread can receive/send events using a shared channel. 
+*** Channels with fully evaluated values
+Haskell channels by default can contain unevaluated thunks, instead of fully evaluated values. But this is not nice because:
+- the receiving thread had to use its resources (CPU, and memory) for evaluating a thunk, and this complicate the reasoning about sharing of work between threads
+- the thunk can need resources like database connections, file handles, and so on, allocated on the producer service, it can not be evaluated on the consumer side
+- if the application switch to remote services, the network channel can only transmit fully evaluated values
+
+So the best approach is sending always fully evaluated values. Obviously a fully evaluated value can be boxed in a pointer, so its transmission will be very cheap. The important thing it is that the value does not require any further evaluation on the receiver side. This simple library ensure this:  
+ 
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+      ./untag.sh src/Process.hs "-- safe-channels" 
+      #+end_src
+
+*** Benchmarks
+Channels are not very fast because they must support sharing and synchronization between different threads. We will test their speed against io-streams and vectors.
+
+This code applies the already known function `fuseCalcOnFoldl` on all the elements of an unboxed vector of `Int`. It is one of the fastest possible operations in Haskell, because it access directly the memory, without any overhead. An operation like this can only be executed locally from a thread, for processing internal data:
+
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+      ./untag.sh src/Optimizations.hs "-- sumOnVector" 
+      #+end_src
+
+This code performs the same operation, but using an io-stream instead of a vector. Every time we are receiving data from the external IO world (e.g. reading a file, receiving the answer of a query from a DBMS), we should use a stream, because it guarantees nice chunk-by-chunk processing of data, with constant memory usage. Note that many io-stream based libraries send data grouped in vector-like chunks, so in practice the processing of this data is not far from vector processing.
+
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+      ./untag.sh src/Optimizations.hs "-- sumOnStream" 
+      #+end_src
+
+This code performs the same operation, but using a channel instead of an io-stream. The channel is more robust in case of concurrent access, because it guarantees fair hold/resumption of threads. So it is also a mechanism for scheduling threads. A channel can support two or more concurrently threads. On the contrary an io-stream is only a unidirectional connection.
+
+       #+begin_src sh :wrap src haskell :results output replace :exports results 
+      ./untag.sh src/Optimizations.hs "-- sumOnChan" 
+      #+end_src
+
+These are the benchmarks:
+ 
+#+INCLUDE: "./generated-resources/chan-bench.txt" src screen
+
+The io-stream is 10x times slower than the vector. But for processing IO data it makes sense, expecially if the data is received chunked inside vectors. And considering that we are comparing against the fastest possible vector, it is indeed a lot lot faster. 
+
+The channel is 10x times slower than the io-stream. It is a big difference, but we must remember that a channel offers also fair scheduling services between threads. So in reality here we are testing also the hold and resume of two threads for 500K times. So the time is not so bad. 
+
+*** Derived pattern
+**** Intent
+Process data in an efficient and robust way.
+**** Solution
+If the data is exchanged between threads, use channels because they guarantee fair scheduling between threads.
+
+If the data is received from a resource in the IO world (or is sent to IO world), use streams, because they guarantee fair/constant usage of memory.
+
+If the data is internal to thread, and the computation is local (it is done from the thread for answering to service requests), process it using vector-like operations.
+** Using threads for concurrent Tasks
+A concurrent Task is a sequence of operations that can interact with the IO world and/or other threads, and that can be executed concurrently with other tasks. 
+*** Task mapped to Operating System threads
+In traditional operating systems, tasks are implemented mapping them to threads. But context switch between threads is extremely slow on current CPUs. Threads have also some memory overhead. 
+
+Using OS threads for managing tasks does not scale well.
+*** Tasks managed from services, using a queue of events
+A task can be managed directly from a Service, but each IO interaction can not block the Service, because it must serve also other clients. So the IO requests are managed as events put in an event queue, and they are resumed when the answer is arrived.
+
+The code structured in this way is a lot faster (e.g. NGINX event based model vs Apache thread model), but it is not readable, because we haven't any more the explicit sequence of actions of the Task. They are spread inside the Service, and the events in the queue.
+*** Tasks mapped to Haskell internal threads
+Haskell threads are very cheap: they uses very few memory, and the context switch between a thread to another has a cost comparable to a function call. So there can be thousands of active threads in an Haskell application.
+
+When a service receives a complex request, it can create a thread for the task to accomplish. The code is comprehensible because it is a sequence of commands. The code is also fast because Haskell threads are cheap. The code is concurrent because the thread can interact with the IO world using MVars and channels, and it will be put in hold and resumed in an efficient and transparent way.
+
+So Haskell threads joins the benefits of events (fast concurrent code), and of threads (readable sequence of instructions).
+*** Benchmarks
+We will process the elements of a vector, using a thread for each element, and a status MVar containing the current partial sum, and the number of the remaining elements to sum. When the count of elements to sum will reach 0, the last thread will write the final result on the MVar dedicated to the final result. The main thread will be resumed and it will return the result:
+
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+      ./untag.sh src/Optimizations.hs "-- sumUsingTasks" 
+      #+end_src 
+
+This is a rather stressing algorithm:
+- there is a thread for each element of the vector (500K in our case)
+- they are all in hold on the status MVar
+- they will be resumed one time, they will update the sum, and then terminate
+
+These are the benchmarks:
+ 
+#+INCLUDE: "./generated-resources/task-bench.txt" src screen
+#+begin_src sh :wrap src screen :results output replace :exports results 
+grep -i "total memory" ./generated-resources/task-bench.txt.mem
+#+end_src
+
+The `sumOnChan` version using only two threads (a producer and a consumer) and a shared channel receiving 500K elements, required a little more than 1s. The version using 500K concurrent threads required 4s, but 1.2GB of RAM. 
+
+The benchmark shows that Haskell can scale to an high number of threads, and so we can map each active task to a thread. 
+*** Derived pattern
+**** Intent
+Process complex requests (Tasks) using readable but efficient code.
+**** Solution
+Map each active request to a Task that is a sequence of (concurrent) actions, and implement the task using an Haskell thread. 
+* Local optimizations
+Local optimization matters also in case of concurrent code.
+** Haskell run-time overview 
+ For writing reasonable code from the beginning, and understanding the profiler hints, one must have a general idea of the Haskell run-time. The main concepts are:
+ - thunk: instead of the result of an expression (a value), a thunk contains a call to the code calculating the expression result
+ - lazy evaluation: an expression is evaluated only when/if it is really needed. So initially an expression is represented by a thunk. The first time its value is needed, the thunk is replaced with the result of the code. Subsequent evaluation of the same thunk returns directly the result of the thunk, without recalculating it.
+ - strict evaluation: an expression is immediately calculated, without using a thunk, bypassing all the lazy evaluation machinery 
+ - not fully evaluated value: a value can be composed of parts (other values), and each value can be represented as a thunk pointing to the code calculating it. Note that all the lazy evaluation concepts can be applied to values, also because values are expressions.
+ - pull model: if an IO action, or a strict expression, requires the value of a thunk, then the thunk is evaluated calling the corresponding code. If the thunk contains other thunks, these thunks are recursively evaluated. Think to a graph where each node is a thunk. You select a thunk, evaluate it, and all connected thunks are evaluated. It is a sort of evaluation on demand, that is starting from the consumer of values, and not in advance from the producer. If only a subset of the graph is (momentary) required, then only a part of the graph will be evaluated. The pull model can represent also values. You can have part of a value not fully evaluated/expanded, and you expand the graph representing the value on demand. For many types of applications (e.g. reactive programming, nested data type analysis) the pull model is the right model, and it is given for free from the Haskell run-time. For other applications it is not the right model, and you had to fight for removing its inefficiencies.
+ - NFData/Normal Form: a fully evaluated value, without sub parts expressed by thunks 
+ - Weak Head Normal Form (WHNF): a value with its first constructor (its initial part) fully evaluated, e.g. in `Just <some-unevaluated-thunk>` we have the `Just` part fully evaluated (we know that it is not Nothing), but the sub parts can be still unevaluated.
+ - unboxed value: a value represented directly, without any indirection. For example an unboxed vector of `Int`, is a vector containing directly the `Int`, and not pointer/references/thunks to `Int`. Pros: their access is fast. Cons: they can not be lazily evaluated (pull model) or shared.
+ - boxed value: a value stored as a thunk/reference to it, instead of directly.
+ - fusion: expressions generating intermediate data structures are transformed from the compiler in equivalent expressions, not generating all of them. Haskell libraries can specify rewrite rules, applying these high-level optimizations. This increase the reuse and usefulness of code, because you can reuse small functions for composing bigger expressions, knowing that the compiler will transform and optimize the code.
+ - Haskell thread: calling/resuming a thread in Haskell has the cost of a function call, so they can be used like events in other languages, because they have a very low overhead.
+ - OS thread: a native thread of the operating system. Context switch is very heavy, and there can not be many threads of this type without saturating the system. Note that performances of modern CPU suffers a lot in case of context switch (10x/100x slower), so usually high performing applications starts a thread for each core, and then manages their operations as events (e.g. Apache web server vs NGINX).
+ - foreign function call: call to a function in C. Often Haskell types had to be converted to C format and vice-versa, so it can be costly respect native Haskell functions.
+** Forcing strict evaluation
+This function applies some passages of random number generation using the elements of an array as parameters. It uses `foldl'` that is a strict (and fast) version of `foldl`, and it works on boxed vectors, that is one of the fastest Haskell data structures. If converted to imperative code, it is a series of simple loops. So it should be fast code.
+    
+     #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/Common.hs "-- comp2" 
+     #+end_src
+
+These are the benchmarks using a vector of 100,000 integers:
+ 
+#+INCLUDE: "./generated-resources/bench1.txt" src screen
+
+#+begin_src sh :wrap src screen :results output replace :exports results 
+grep -i "total memory" ./generated-resources/bench1.txt.mem
+#+end_src
+
+But by default Haskell code is lazy code. So the internal loops of this function are managed as thunks, also if in our case we want direct/strict computation. 
+
+Many optimizations in Haskell are easy to write. In our case it suffices to add bang patterns, forcing a value to be calculated in a strict way. These are the "new" internal expressions:
+
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+     ./untag.sh src/Common.hs "-- strict" 
+     #+end_src
+
+The effects at run-time are puzzling: the strict version uses 5x less RAM, but it is slightly slower.
+ 
+#+INCLUDE: "./generated-resources/bench2.txt" src screen
+#+begin_src sh :wrap src screen :results output replace :exports results 
+grep -i "total memory" ./generated-resources/bench2.txt.mem
+#+end_src
+*** Derived pattern
+**** Intent
+Having elegant but efficient Haskell code.
+**** Solution
+First write elegant code. Then use faster data structures. Add strict annotations in internal expressions, if you are sure that you are not interested to benefits of lazy evaluation. Profile the effect of each change.
+
+Usually these optimizations are easy to apply to an existing Haskell code-base, and the code remain readable and elegant.
+
 ** Lazy evaluation can break resource management
  Resource management is vital for robust production code. If too much file descriptors, database connections, or network sockets are left open, the system became unreliable. So resources must be acquired, used, and released in predictable way. But lazy evaluation renders the run-time behaviour more obscure and unpredictable, because there can be pending thunks instead of fully evaluated values. 
 
@@ -158,122 +308,6 @@ These are the benchmarks:
 Writing robust code for processing data from/to IO world. 
 **** Solution 
 Streams are fast, and their overhead is negligible respect the involved IO operations. Stream processing is robust because they guarantee that only one element at a time is generated and processed. So there is no waste of memory and space leaks. On the contrary lists are prone to this type of problems.
-
-Note that streams do not process data in parallel by default, and they do not use additional cores for prefetching the computation of next elements. So they are not a form of concurrent/parallel programming, but only a method for processing data inside a thread.
-** Using channels for concurrent interaction between services  
-In Haskell you can map a local [[https://en.wikipedia.org/wiki/Service-orientation][Service]] or [[https://en.wikipedia.org/wiki/Actor_model][Actor]] to a thread. The thread can receive/send events using a shared channel. 
-*** Channels with fully evaluated values
-Haskell channels by default can contain unevaluated thunks, instead of fully evaluated values. But this is not nice because:
-- the receiving thread had to use its resources (CPU, and memory) for evaluating a thunk, and this complicate the reasoning about sharing of work between threads
-- the thunk can need resources like database connections, file handles, and so on, allocated on the producer service, it can not be evaluated on the consumer side
-- if the application switch to remote services, the network channel can only transmit fully evaluated values
-
-So the best approach is sending always fully evaluated values. Obviously a fully evaluated value can be boxed in a pointer, so its transmission will be very cheap. The important thing it is that the value does not require any further evaluation on the receiver side. This simple library ensure this:  
- 
-      #+begin_src sh :wrap src haskell :results output replace :exports results 
-      ./untag.sh src/Process.hs "-- safe-channels" 
-      #+end_src
-
-*** Speed of channels
-Channels are not very fast because they must support sharing and synchronization between different threads. We will test their speed against io-streams and vectors.
-
-This code applies the already known function `fuseCalcOnFoldl` on all the elements of an unboxed vector of `Int`. It is one of the fastest possible operations in Haskell, because it access directly the memory, without any overhead. An operation like this can only be executed locally from a thread, for processing internal data:
-
-      #+begin_src sh :wrap src haskell :results output replace :exports results 
-      ./untag.sh src/Optimizations.hs "-- sumOnVector" 
-      #+end_src
-
-This code performs the same operation, but using an io-stream instead of a vector. Obviously doing so does not make sense, if we can make the operation directly on the vector. But there are situations when streams are appropiate: e.g. if we are receiving the elements to process from a database connection, or from a file. In general every time we are receiving data from the external IO world, we should use a stream, because it guarantees nice chunk-by-chunk processing of data, with constant memory usage. Note that many io-stream based libraries send data grouped in chunks (e.g. a file content as chunk of ByteString and not character by character), so the processing of this data is not far from vector processing. 
-
-Summing up, this code is ideally used inside a service/actor/thread for processing data from the external IO world:
-
-      #+begin_src sh :wrap src haskell :results output replace :exports results 
-      ./untag.sh src/Optimizations.hs "-- sumOnStream" 
-      #+end_src
-
-This code performs the same operation, but using a channel instead of an io-stream. This make sense when a service/actor/thread receives data from another local service, or from a database connection, and so on. The advantages respect streams it is that data can be buffered, and the channel is more robust in case of concurrent access, because it guarantees fair thread hold/resumption. So it is also a mechanism for scheduling threads. 
-
-Summing up this code is ideally used for communication and implicit scheduling between local threads:
-
-       #+begin_src sh :wrap src haskell :results output replace :exports results 
-      ./untag.sh src/Optimizations.hs "-- sumOnChan" 
-      #+end_src
-
-These are the benchmarks:
- 
-#+INCLUDE: "./generated-resources/chan-bench.txt" src screen
-
-The io-stream is 10x times slower than the vector. But for processing IO data it makes sense, expecially if the data is received chunked inside vectors. And considering that we are comparing against the fastest possible vector, it is indeed a lot lot faster. 
-
-The channel is 10x times slower than the io-stream. It is a big difference, but we must remember that a channel offers also fair scheduling services between threads. So in reality here we are testing also the hold and resume of two threads for 500K times. So the time is not so bad. 
-
-*** Derived pattern
-**** Intent
-Process data in an efficient and concurrent friendly way.
-**** Solution
-If the data is exchanged between local threads, use channels because they guarantee fair scheduling services between threads.
-
-If the data is received from a resource in the IO world (or is sent to IO world), use streams, because they guarantee fair/constant usage of memory.
-
-If the data is internal to thread, and the computation is local (it is done from the thread for answering to service requests), process it using vector-like operations.
-** Using threads as IO Task
-TODO In Haskell you can use internal threads, because they are very light. With Haskell threads you have the clear semantic of task, but the run-time behaviour typical of event-based applications. You have the best of the two world.
-
-
-* Local optimizations
-Local optimization matters also in case of concurrent code.
-** Haskell run-time overview 
- For writing reasonable code from the beginning, and understanding the profiler hints, one must have a general idea of the Haskell run-time. The main concepts are:
- - thunk: instead of the result of an expression (a value), a thunk contains a call to the code calculating the expression result
- - lazy evaluation: an expression is evaluated only when/if it is really needed. So initially an expression is represented by a thunk. The first time its value is needed, the thunk is replaced with the result of the code. Subsequent evaluation of the same thunk returns directly the result of the thunk, without recalculating it.
- - strict evaluation: an expression is immediately calculated, without using a thunk, bypassing all the lazy evaluation machinery 
- - not fully evaluated value: a value can be composed of parts (other values), and each value can be represented as a thunk pointing to the code calculating it. Note that all the lazy evaluation concepts can be applied to values, also because values are expressions.
- - pull model: if an IO action, or a strict expression, requires the value of a thunk, then the thunk is evaluated calling the corresponding code. If the thunk contains other thunks, these thunks are recursively evaluated. Think to a graph where each node is a thunk. You select a thunk, evaluate it, and all connected thunks are evaluated. It is a sort of evaluation on demand, that is starting from the consumer of values, and not in advance from the producer. If only a subset of the graph is (momentary) required, then only a part of the graph will be evaluated. The pull model can represent also values. You can have part of a value not fully evaluated/expanded, and you expand the graph representing the value on demand. For many types of applications (e.g. reactive programming, nested data type analysis) the pull model is the right model, and it is given for free from the Haskell run-time. For other applications it is not the right model, and you had to fight for removing its inefficiencies.
- - NFData/Normal Form: a fully evaluated value, without sub parts expressed by thunks 
- - Weak Head Normal Form (WHNF): a value with its first constructor (its initial part) fully evaluated, e.g. in `Just <some-unevaluated-thunk>` we have the `Just` part fully evaluated (we know that it is not Nothing), but the sub parts can be still unevaluated.
- - unboxed value: a value represented directly, without any indirection. For example an unboxed vector of `Int`, is a vector containing directly the `Int`, and not pointer/references/thunks to `Int`. Pros: their access is fast. Cons: they can not be lazily evaluated (pull model) or shared.
- - boxed value: a value stored as a thunk/reference to it, instead of directly.
- - fusion: expressions generating intermediate data structures are transformed from the compiler in equivalent expressions, not generating all of them. Haskell libraries can specify rewrite rules, applying these high-level optimizations. This increase the reuse and usefulness of code, because you can reuse small functions for composing bigger expressions, knowing that the compiler will transform and optimize the code.
- - Haskell thread: calling/resuming a thread in Haskell has the cost of a function call, so they can be used like events in other languages, because they have a very low overhead.
- - OS thread: a native thread of the operating system. Context switch is very heavy, and there can not be many threads of this type without saturating the system. Note that performances of modern CPU suffers a lot in case of context switch (10x/100x slower), so usually high performing applications starts a thread for each core, and then manages their operations as events (e.g. Apache web server vs NGINX).
- - foreign function call: call to a function in C. Often Haskell types had to be converted to C format and vice-versa, so it can be costly respect native Haskell functions.
-** Forcing strict evaluation
-This function applies some passages of random number generation using the elements of an array as parameters. It uses `foldl'` that is a strict (and fast) version of `foldl`, and it works on boxed vectors, that is one of the fastest Haskell data structures. If converted to imperative code, it is a series of simple loops. So it should be fast code.
-    
-     #+begin_src sh :wrap src haskell :results output replace :exports results 
-     ./untag.sh src/Common.hs "-- comp2" 
-     #+end_src
-
-These are the benchmarks using a vector of 100,000 integers:
- 
-#+INCLUDE: "./generated-resources/bench1.txt" src screen
-
-#+begin_src sh :wrap src screen :results output replace :exports results 
-grep -i "total memory" ./generated-resources/bench1.txt.mem
-#+end_src
-
-But by default Haskell code is lazy code. So the internal loops of this function are managed as thunks, also if in our case we want direct/strict computation. 
-
-Many optimizations in Haskell are easy to write. In our case it suffices to add bang patterns, forcing a value to be calculated in a strict way. These are the "new" internal expressions:
-
-      #+begin_src sh :wrap src haskell :results output replace :exports results 
-     ./untag.sh src/Common.hs "-- strict" 
-     #+end_src
-
-The effects at run-time are puzzling: the strict version uses 5x less RAM, but it is slightly slower.
- 
-#+INCLUDE: "./generated-resources/bench2.txt" src screen
-#+begin_src sh :wrap src screen :results output replace :exports results 
-grep -i "total memory" ./generated-resources/bench2.txt.mem
-#+end_src
-*** Derived pattern
-**** Intent
-Having elegant but efficient Haskell code.
-**** Solution
-First write elegant code. Then use faster data structures. Add strict annotations in internal expressions, if you are sure that you are not interested to benefits of lazy evaluation. Profile the effect of each change.
-
-Usually these optimizations are easy to apply to an existing Haskell code-base, and the code remain readable and elegant.
-
 ** Profiling and benchmarking are distinct operations 
 *** Mundane intro
 For optimizing Haskell code you need a profiler, because developers can not easily predict where and why their code is slow. This is more true for an high-level language as Haskell, with a lot of compilation transformation pass, and a complex run-time. 

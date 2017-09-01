@@ -36,6 +36,9 @@ generated-resources/fusion-bench.txt : $(prg-file) prg
 generated-resources/chan-bench.txt : $(prg-file) prg
 	stack exec bench -- bench chan1 175557 500000 +RTS -N2 -RTS > $@ 
 
+generated-resources/task-bench.txt : $(prg-file) prg
+	stack exec bench -- bench task1 175557 500000 +RTS -N2 -s -RTS > $@ 2> $@.mem 
+
 generated-resources/fusion-bench-prof.txt : $(prg-prof-file) prg-prof
 	stack exec prof -- bench fusion1 175557 500000 +RTS -N2 -RTS > $@ 
 
