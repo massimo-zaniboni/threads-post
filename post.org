@@ -356,8 +356,8 @@ These are words without code... :-)
  - Haskell thread: calling/resuming a thread in Haskell has the cost of a function call, so they can be used like events in other languages, because they have a very low overhead.
  - OS thread: a native thread of the operating system. Context switch is very heavy, and there can not be many threads of this type without saturating the system. Note that performances of modern CPU suffers a lot in case of context switch (10x/100x slower), so usually high performing applications starts a thread for each core, and then manages their operations as events (e.g. Apache web server vs NGINX).
  - foreign function call: call to a function in C. Often Haskell types had to be converted to C format and vice-versa, so it can be costly respect native Haskell functions.
-* Conclusions
-  TODO write
+* Conclusions 
+Haskell simplifies a lot concurrent programming respect traditional imperative programming languages, but there can be minor problems in the libraries, requiring some care.
 * About
 I'm using Haskell in production, for [[https://www.asterisell.com][rating VoIP calls]], but I'm not a true expert of concurrent programming, so feel free to fork and extend this document. The source code of this document is [[https://github.com/massimo-zaniboni/threads-post][here, on GitHub]]. It is released under BSD2 license. It is written in [[http://orgmode.org/worg/org-contrib/babel/][Babel]], under Emacs [[http://orgmode.org/][Org mode]], and it contains live code, that is executed every time the document is generated.
 
