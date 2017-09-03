@@ -1,28 +1,35 @@
 benchmarking list initial warm-up evaluation - not consider
-time                 1.015 ms   (1.014 ms .. 1.016 ms)
+time                 1.014 ms   (1.013 ms .. 1.014 ms)
                      1.000 R²   (1.000 R² .. 1.000 R²)
-mean                 1.016 ms   (1.015 ms .. 1.017 ms)
-std dev              3.549 μs   (2.033 μs .. 6.147 μs)
+mean                 1.014 ms   (1.014 ms .. 1.015 ms)
+std dev              2.073 μs   (934.7 ns .. 4.031 μs)
 
 benchmarking sumOnVector
-time                 12.31 ms   (12.27 ms .. 12.39 ms)
-                     1.000 R²   (0.999 R² .. 1.000 R²)
-mean                 12.30 ms   (12.29 ms .. 12.35 ms)
-std dev              65.40 μs   (17.85 μs .. 131.2 μs)
+time                 11.86 ms   (11.85 ms .. 11.87 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 11.85 ms   (11.84 ms .. 11.85 ms)
+std dev              18.02 μs   (13.67 μs .. 23.35 μs)
 
 benchmarking sumOnStream
-time                 101.6 ms   (100.7 ms .. 102.9 ms)
-                     1.000 R²   (0.999 R² .. 1.000 R²)
-mean                 101.2 ms   (99.85 ms .. 101.8 ms)
-std dev              1.342 ms   (383.1 μs .. 2.127 ms)
+time                 90.26 ms   (87.45 ms .. 91.44 ms)
+                     0.999 R²   (0.996 R² .. 1.000 R²)
+mean                 90.61 ms   (89.30 ms .. 91.07 ms)
+std dev              1.260 ms   (136.8 μs .. 2.054 ms)
 
 benchmarking sumOnChan
-time                 1.171 s    (1.107 s .. 1.272 s)
+time                 1.194 s    (1.149 s .. 1.284 s)
                      0.999 R²   (0.998 R² .. 1.000 R²)
-mean                 1.161 s    (1.144 s .. 1.172 s)
-std dev              16.02 ms   (0.0 s .. 18.41 ms)
+mean                 1.160 s    (1.149 s .. 1.183 s)
+std dev              19.61 ms   (0.0 s .. 19.62 ms)
 variance introduced by outliers: 19% (moderately inflated)
+
+benchmarking sumOnUnagi
+time                 57.81 ms   (57.49 ms .. 58.14 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 57.37 ms   (57.19 ms .. 57.52 ms)
+std dev              292.7 μs   (218.2 μs .. 390.3 μs)
 
 sumOnVector: 8338764493050923690
 sumOnStream: 8338764493050923690
 sumOnChan: 8338764493050923690
+sumOnUnagi: 8338764493050923690

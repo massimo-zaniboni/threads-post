@@ -1,9 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables, BangPatterns #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, RankNTypes #-} 
 
 module Channels (
     OneChanType(..)
   , testChannels
+  , process_manager
   ) where
 
 import Common
@@ -17,6 +19,13 @@ import Control.Concurrent.MVar
 import Control.Concurrent.Async
 import Control.DeepSeq 
 import qualified Data.Vector.Unboxed as BV 
+import qualified Process as Safe
+import Data.List as L
+import Data.IORef
+import System.Random
+import Control.Concurrent (threadDelay)
+import Control.DeepSeq
+import GHC.Generics (Generic)
 
 -- -------------------------------------
 -- Support different types of channels
@@ -43,7 +52,7 @@ writeToOneChan chan x
       ChanMVar ch -> putMVar ch x
 
 -- -----------------------------
--- Process
+-- Test memory usage
 
 -- producer-begin
 -- | Generate vectors of values.
@@ -101,3 +110,64 @@ testChannels chanType seed fuzzyNormalizer vectorDimension channelDimension = do
          (slowConsumer fuzzyNormalizer chan)
   return ()
 -- test-end
+
+-- --------------------------------
+-- Test deadlock bug
+
+-- TODO switch to multi channels type 
+
+data Cmd = Cmd Int
+ deriving(Eq, Generic, NFData)
+
+process_readFromDB :: Int -> Int -> Safe.Chan Cmd -> IO ()
+process_readFromDB seed nrOfElements ch = do
+  mapM_ (\s -> Safe.writeChan ch (Cmd s)) (L.take nrOfElements $ randoms $ mkStdGen seed)
+  Safe.writeEOFChan ch
+
+process_transformData :: Int -> Int -> Safe.Chan Cmd -> Safe.Chan Cmd -> IO ()
+process_transformData fuzzyNormalizer waitTime inCh outCh  = do
+  maybeCmd <- Safe.readChan inCh
+  case maybeCmd of
+    Nothing
+      -> do Safe.writeEOFChan outCh
+    Just (Cmd s)
+      -> do case waitTime > 0 of
+              True -> threadDelay waitTime
+              False -> return ()
+            Safe.writeChan outCh (Cmd $ s `mod` fuzzyNormalizer)
+            process_transformData fuzzyNormalizer waitTime inCh outCh
+
+process_writeToDB :: Int -> Int -> Safe.Chan Cmd -> IO ()
+process_writeToDB fuzzyNormalizer waitTime ch = do
+  initialState <- newIORef 0
+  processCmds initialState
+
+ where
+
+   processCmds stateR = do
+     s0 <- readIORef stateR
+     maybeCmd <- Safe.readChan ch
+     case maybeCmd of
+       Nothing -> do putStrLn $ "process_writeToDB last state: " ++ show s0
+                     return ()
+       Just (Cmd s)
+           -> do case waitTime > 0 of
+                   True -> threadDelay waitTime
+                   False -> return ()
+                 writeIORef stateR ((s0 + s) `mod` fuzzyNormalizer)
+                 processCmds stateR
+
+process_manager :: Int -> Int -> Int -> Int -> Int -> IO ()
+process_manager seed fuzzyNormalizer producerWaitTime consumerWaitTime nrOfElements = do
+  chan1 <- Safe.newChan 
+  chan2 <- Safe.newChan 
+
+  _ <- withAsync
+         (process_writeToDB fuzzyNormalizer consumerWaitTime chan2)
+         (\writeThread -> do
+             _ <- concurrently
+                    (process_readFromDB seed nrOfElements chan1)
+                    (process_transformData fuzzyNormalizer producerWaitTime chan1 chan2)
+
+             wait writeThread)
+  return ()

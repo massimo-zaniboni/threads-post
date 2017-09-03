@@ -253,6 +253,12 @@ This code performs the same operation, but using a channel instead of an io-stre
       ./untag.sh src/Optimizations.hs "-- sumOnChan" 
       #+end_src
 
+This code performs the same operation, but using an [[http://hackage.haskell.org/package/unagi-chan][Unagi-chan]] that is a channel implemented using lock-free x86 instructions (so it is not portable to other CPUs). It can connect different threads (unlike io-strems), but I didn't tested if its scheduling policies are fair like default channels. 
+
+      #+begin_src sh :wrap src haskell :results output replace :exports results 
+      ./untag.sh src/Optimizations.hs "-- sumOnUnagi" 
+      #+end_src
+
 These are the benchmarks:
  
 #+INCLUDE: "./generated-resources/chan-bench.txt" src screen
@@ -260,6 +266,8 @@ These are the benchmarks:
 The io-stream is 10x times slower than the vector. But for processing IO data it makes sense, expecially if the data is received chunked inside vectors. And considering that we are comparing against the fastest possible vector, it is indeed a lot lot faster. 
 
 The channel is 10x times slower than the io-stream. It is a big difference, but we must remember that a channel offers also fair scheduling services between threads. So in reality here we are testing also the hold and resume of two threads for 500K times. So the time is not so bad. 
+
+The Unagi channel is 2x faster than the io-stream, and 20x times faster than default channels. Probably for IO bound operations this does not matter. It can be useful for threads exchanging calculations on big-data, but in these cases it is also useful transferring data in batches, because accessing values batched inside a vector is still 60x times faster than accessing an Unagi channel, and many big-data computations occurs naturally in batches. 
 
 *** Derived pattern
 **** Intent

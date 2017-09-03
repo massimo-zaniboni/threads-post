@@ -1,0 +1,22 @@
+benchmarking list initial warm-up evaluation - not consider
+time                 1.010 ms   (1.009 ms .. 1.011 ms)
+                     1.000 R²   (1.000 R² .. 1.000 R²)
+mean                 1.011 ms   (1.011 ms .. 1.012 ms)
+std dev              2.687 μs   (2.224 μs .. 3.333 μs)
+
+benchmarking sumOnChan
+time                 1.198 s    (1.156 s .. 1.237 s)
+                     1.000 R²   (NaN R² .. 1.000 R²)
+mean                 1.223 s    (1.212 s .. 1.229 s)
+std dev              9.798 ms   (0.0 s .. 10.65 ms)
+variance introduced by outliers: 19% (moderately inflated)
+
+benchmarking sumUsingTasks
+time                 4.002 s    (3.405 s .. 4.490 s)
+                     0.997 R²   (0.991 R² .. 1.000 R²)
+mean                 3.937 s    (3.827 s .. 4.007 s)
+std dev              105.7 ms   (0.0 s .. 121.7 ms)
+variance introduced by outliers: 19% (moderately inflated)
+
+sumOnChan: 8338764493050923690
+sumUsingTasks: 8338764493050923690

@@ -39,6 +39,22 @@ main = do
                                -> OneMVarChan
             testChannels chanType seed fuzzyNormalizer vectorDimension channelDimension
 
+    ["test", "deadlock1", chanTypeS, seedS, fuzzyS, elementsS]
+      -> do let seed :: Int = read seedS
+            let fuzzyNormalizer :: Int = read fuzzyS
+            let nrOfElements :: Int = read elementsS
+            let chanType = case chanTypeS of
+                             "default"
+                               -> OneDefaultChan
+                             "bounded"
+                               -> OneBoundedChan
+                             "mvar"
+                               -> OneMVarChan
+            let producedEementsForSecond :: Int = 5000
+            let consumedElementsForSecond :: Int = 500
+            let wait s = 10^6 `div` s
+            process_manager seed fuzzyNormalizer (wait producedEementsForSecond) (wait consumedElementsForSecond) nrOfElements
+
     ["bench", "strict1", seedS, vectorDimensionS, channelDimensionS, useStrictS]
       -> do let seed :: Int = read seedS
             let vectorDimension :: Int = read vectorDimensionS
@@ -95,14 +111,17 @@ main = do
               , bench "sumOnVector" $ nf Optimizations.sumOnVector l
               , bench "sumOnStream" $ nfIO $ Optimizations.sumOnStream l
               , bench "sumOnChan" $ nfIO $ Optimizations.sumOnChan l
+              , bench "sumOnUnagi" $ nfIO $ Optimizations.sumOnUnagi l
               ]
 
             r1 <- Optimizations.sumOnStream l
             r2 <- Optimizations.sumOnChan l
+            r3 <- Optimizations.sumOnUnagi l
 
             putStrLn $ "sumOnVector: " ++ show (Optimizations.sumOnVector l)
             putStrLn $ "sumOnStream: " ++ show r1 
             putStrLn $ "sumOnChan: " ++ show r2
+            putStrLn $ "sumOnUnagi: " ++ show r3
 
     ["bench", "task1", seedS, vectorDimensionS]
       -> do let seed :: Int = read seedS

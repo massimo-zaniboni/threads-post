@@ -54,6 +54,10 @@ generated-resources/channel3.txt : $(prg-prof-file) prg-prof
 	stack exec prof -- test channels mvar $(channel-params) 2> $@
 	$(save-profiling)
 
+deadlock1-params := 123456 5000000 300 +RTS -N2 -s -RTS
+generated-resources/deadlock_chan1.txt : $(prg-file) prg
+	stack exec bench -- test deadlock1 mvar $(deadlock1-params) > $@
+
 all : prg prg-prof generated-resources/channel1.txt generated-resources/channel2.txt generated-resources/channel3.txt generated-resources/bench1.txt generated-resources/bench2.txt generated-resources/fusion-bench.txt
 
 .PHONY : clean

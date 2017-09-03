@@ -38,6 +38,7 @@ executable bench
            , random -any
            , criterion -any
            , statistics -any
+           , unagi-chan -any
 
   main-is: Main.hs
   buildable: True
@@ -79,6 +80,7 @@ executable prof
            , random -any
            , criterion -any
            , statistics -any
+           , unagi-chan -any
 
   main-is: Main.hs
   buildable: True

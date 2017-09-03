@@ -15,6 +15,7 @@ module Optimizations(
  , sumOnStream
  , sumOnChan
  , sumOnVector
+ , sumOnUnagi
  , sumUsingTasks
              ) where
 
@@ -41,6 +42,7 @@ import qualified System.IO.Streams as S
 import qualified System.IO.Streams.Combinators as S
 import qualified System.IO.Streams.List as S
 import qualified System.IO.Streams.Vector as S
+import qualified Control.Concurrent.Chan.Unagi as UStream
 
 -- --------------------------------
 -- Bench lazy vs strict
@@ -139,6 +141,25 @@ sumOnChan l = do
        Nothing -> return s
        Just x -> sumOnChan' ch (fusedCalcOnFoldl s x)
 -- sumOnChan-end
+
+-- sumOnUnagi-begin
+sumOnUnagi :: BV.Vector Int -> IO Int
+sumOnUnagi l = do
+  (inCh, outCh) <- UStream.newChan
+
+  (_, r) <- concurrently
+              (do BV.mapM_ (\i -> UStream.writeChan inCh (Just i)) l
+                  UStream.writeChan inCh Nothing)
+              (sumOnChan' outCh 0)
+  return r
+ where
+   
+   sumOnChan' ch !s = do
+     mx <- UStream.readChan ch
+     case mx of
+       Nothing -> return s
+       Just x -> sumOnChan' ch (fusedCalcOnFoldl s x)
+-- sumOnUnagi-end
 
 -- ---------------------------
 -- Threads as Task
